@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ChevronRight, Search, SearchCheck } from "lucide-react";
 
 import {
@@ -17,11 +17,6 @@ import type { AgentStep } from "@/lib/types";
 function AgentThread({ agent, steps, live }: { agent: string; steps: AgentStep[]; live: boolean }) {
   const [open, setOpen] = useState(true);
   const found = steps.filter((s) => s.action === "found").length;
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "nearest" });
-  }, [steps.length]);
 
   return (
     <Collapsible
@@ -86,7 +81,6 @@ function AgentThread({ agent, steps, live }: { agent: string; steps: AgentStep[]
                 )}
               </li>
             ))}
-            <div ref={bottomRef} />
           </ol>
         </ScrollArea>
       </CollapsibleContent>
