@@ -8,7 +8,7 @@ load_dotenv()
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 EXA_API_KEY = os.environ["EXA_API_KEY"]
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5000")
 
 STRUCTURING_MODEL = "gpt-5.6-luna"
 AGENT_MODEL = "gpt-5.6-luna"
