@@ -62,6 +62,11 @@ export function useResearchStream() {
   const [state, setState] = useState<ResearchState>(initialState);
   const controllerRef = useRef<AbortController | null>(null);
 
+  const reset = useCallback(() => {
+    controllerRef.current?.abort();
+    setState(initialState);
+  }, []);
+
   const start = useCallback(async (prompt: string) => {
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -110,5 +115,5 @@ export function useResearchStream() {
     }
   }, []);
 
-  return { ...state, start };
+  return { ...state, start, reset };
 }
