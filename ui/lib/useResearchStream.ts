@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { AgentStep, RankedCandidate, ResearchEvent, StructuredQuery } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8500";
 
 export type ResearchStatus =
   | "idle"
