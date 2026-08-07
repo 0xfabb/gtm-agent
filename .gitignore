@@ -1,2 +1,8 @@
 __pycache__
 gtmenv/
+.env
+.env/
+deploy/watch.log
+IMPROVEMENTS.md 
+DESIGN.md
+improvements-reframed.md
