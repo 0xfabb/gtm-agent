@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChatSidebar } from "@/components/research/ChatSidebar";
 import { PipelineStepper } from "@/components/research/PipelineStepper";
 import { ResearchTrace } from "@/components/research/ResearchTrace";
+import { SeedProfileCard } from "@/components/research/SeedProfileCard";
 import { ShortlistResults } from "@/components/research/ShortlistResults";
 import { StructuredQueryChips } from "@/components/research/StructuredQueryChips";
 import {
@@ -36,7 +37,18 @@ export default function Home() {
   const savedRef = useRef(false);
 
   const chats = useSyncExternalStore(subscribeChats, getChatsSnapshot, getServerChatsSnapshot);
-  const { status, structuredQuery, trace, shortlist, errors, start, reset } = useResearchStream();
+  const {
+    status,
+    structuredQuery,
+    seedProfile,
+    trace,
+    shortlist,
+    unverified,
+    summary,
+    errors,
+    start,
+    reset,
+  } = useResearchStream();
 
   useEffect(() => {
     if (status === "done" && !savedRef.current && submittedPrompt) {
@@ -47,12 +59,14 @@ export default function Home() {
         prompt: submittedPrompt,
         createdAt: Date.now(),
         structuredQuery,
+        seedProfile,
         trace,
         shortlist,
+        unverified,
       });
       setActiveChatId(id);
     }
-  }, [status, submittedPrompt, structuredQuery, trace, shortlist]);
+  }, [status, submittedPrompt, structuredQuery, seedProfile, trace, shortlist, unverified]);
 
   const activeChat = activeChatId ? (chats.find((c) => c.id === activeChatId) ?? null) : null;
   const busy = status === "structuring" || status === "researching" || status === "ranking";
@@ -60,6 +74,8 @@ export default function Home() {
   const displayedStructuredQuery = activeChat ? activeChat.structuredQuery : structuredQuery;
   const displayedTrace = activeChat ? activeChat.trace : trace;
   const displayedShortlist = activeChat ? activeChat.shortlist : shortlist;
+  const displayedUnverified = activeChat ? (activeChat.unverified ?? []) : unverified;
+  const displayedSeedProfile = activeChat ? (activeChat.seedProfile ?? null) : seedProfile;
 
   function submit() {
     if (!prompt.trim() || busy) return;
@@ -169,12 +185,18 @@ export default function Home() {
 
           {displayedStructuredQuery && <StructuredQueryChips query={displayedStructuredQuery} />}
 
+          {displayedSeedProfile && <SeedProfileCard profile={displayedSeedProfile} />}
+
           {(activeChat || (status !== "idle" && status !== "structuring")) && (
             <ResearchTrace trace={displayedTrace} live={!activeChat && status === "researching"} />
           )}
 
           {(activeChat || status === "done" || status === "ranking") && (
-            <ShortlistResults shortlist={displayedShortlist} />
+            <ShortlistResults
+              shortlist={displayedShortlist}
+              unverified={displayedUnverified}
+              summary={activeChat ? null : summary}
+            />
           )}
         </div>
       </main>

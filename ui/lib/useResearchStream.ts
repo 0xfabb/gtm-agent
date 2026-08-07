@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   AgentStep,
+  Candidate,
+  FilterSummary,
   RankedCandidate,
   ResearchEvent,
   SeedProfile,
@@ -25,6 +27,8 @@ interface ResearchState {
   seedProfile: SeedProfile | null;
   trace: Record<string, AgentStep[]>;
   shortlist: RankedCandidate[];
+  unverified: Candidate[];
+  summary: FilterSummary | null;
   errors: { agent: string; message: string }[];
 }
 
@@ -34,6 +38,8 @@ const initialState: ResearchState = {
   seedProfile: null,
   trace: {},
   shortlist: [],
+  unverified: [],
+  summary: null,
   errors: [],
 };
 
@@ -59,10 +65,17 @@ function applyEvent(state: ResearchState, event: ResearchEvent): ResearchState {
     }
     case "error":
       return { ...state, errors: [...state.errors, { agent: event.agent, message: event.message }] };
+    case "filtered":
+      return { ...state, status: "ranking", summary: event.data };
     case "ranking_complete":
       return { ...state, status: "ranking", shortlist: event.data };
     case "done":
-      return { ...state, status: "done", shortlist: event.shortlist };
+      return {
+        ...state,
+        status: "done",
+        shortlist: event.shortlist,
+        unverified: event.unverified ?? [],
+      };
     default:
       return state;
   }

@@ -1,4 +1,10 @@
-import type { AgentStep, RankedCandidate, StructuredQuery } from "./types";
+import type {
+  AgentStep,
+  Candidate,
+  RankedCandidate,
+  SeedProfile,
+  StructuredQuery,
+} from "./types";
 
 const STORAGE_KEY = "kol-research-chats";
 const MAX_CHATS = 30;
@@ -9,8 +15,10 @@ export interface ChatSession {
   prompt: string;
   createdAt: number;
   structuredQuery: StructuredQuery | null;
+  seedProfile?: SeedProfile | null;
   trace: Record<string, AgentStep[]>;
   shortlist: RankedCandidate[];
+  unverified?: Candidate[];
 }
 
 let cache: ChatSession[] | null = null;

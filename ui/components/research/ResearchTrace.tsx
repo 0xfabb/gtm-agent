@@ -17,6 +17,7 @@ import type { AgentStep } from "@/lib/types";
 function AgentThread({ agent, steps, live }: { agent: string; steps: AgentStep[]; live: boolean }) {
   const [open, setOpen] = useState(true);
   const found = steps.filter((s) => s.action === "found").length;
+  const searches = steps.filter((s) => s.action === "searching").length;
 
   return (
     <Collapsible
@@ -43,7 +44,7 @@ function AgentThread({ agent, steps, live }: { agent: string; steps: AgentStep[]
           )}
         </span>
         <Badge variant="outline" className="font-mono">
-          {found} found
+          {searches} {searches === 1 ? "search" : "searches"} · {found} seen
         </Badge>
       </CollapsibleTrigger>
       <CollapsibleContent>
