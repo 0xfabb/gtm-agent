@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 from exa_py import AsyncExa
 from openai import AsyncOpenAI
