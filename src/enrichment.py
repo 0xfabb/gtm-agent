@@ -5,17 +5,23 @@ from schemas import Candidate, EnrichedCandidate, StructuredQuery
 from urls import dedupe_key, normalize_url, parse_profile_url
 
 
-def _resolve_identity(candidate: Candidate) -> tuple[str, str]:
-    ref = parse_profile_url(candidate.url)
+def _resolve_identity(
+    candidate: Candidate, observed_url: Optional[str] = None
+) -> tuple[str, str]:
+    ref = parse_profile_url(observed_url) if observed_url else None
+    if ref is None:
+        ref = parse_profile_url(candidate.url)
     if ref is None:
         return candidate.handle.lstrip("@"), normalize_url(candidate.url)
     return ref.handle, ref.canonical_url
 
 
 def enrich_candidate(
-    candidate: Candidate, page_text: Optional[str] = None
+    candidate: Candidate,
+    page_text: Optional[str] = None,
+    observed_url: Optional[str] = None,
 ) -> EnrichedCandidate:
-    handle, url = _resolve_identity(candidate)
+    handle, url = _resolve_identity(candidate, observed_url)
 
     stats = extract_profile_stats(page_text or candidate.source_evidence)
     followers = stats.followers if stats.followers is not None else candidate.follower_count
@@ -100,21 +106,27 @@ def partition_candidates(
 
 
 def enrich_all(
-    candidates: list[Candidate], page_texts: Optional[dict[str, str]] = None
+    candidates: list[Candidate], observations: Optional[dict] = None
 ) -> list[EnrichedCandidate]:
-    texts = page_texts or {}
+    seen = observations or {}
     enriched = []
     for candidate in candidates:
         ref = parse_profile_url(candidate.url)
         handle = ref.handle if ref else candidate.handle
-        key = dedupe_key(candidate.platform, handle)
-        enriched.append(enrich_candidate(candidate, texts.get(key)))
+        observation = seen.get(dedupe_key(candidate.platform, handle))
+        enriched.append(
+            enrich_candidate(
+                candidate,
+                page_text=getattr(observation, "text", None),
+                observed_url=getattr(observation, "url", None),
+            )
+        )
     return dedupe_candidates(enriched)
 
 
 def enrich_and_filter(
     candidates: list[Candidate],
     query: StructuredQuery,
-    page_texts: Optional[dict[str, str]] = None,
+    observations: Optional[dict] = None,
 ) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
-    return partition_candidates(enrich_all(candidates, page_texts), query)
+    return partition_candidates(enrich_all(candidates, observations), query)

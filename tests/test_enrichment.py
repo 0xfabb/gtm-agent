@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from enrichment import (
+    enrich_all,
     dedupe_candidates,
     enrich_and_filter,
     enrich_candidate,
@@ -141,11 +142,52 @@ def test_exclusion_keywords_filter_by_bio_and_handle():
     assert [c.handle for c in in_band] == ["cleanguy"]
 
 
+class _Observation:
+    def __init__(self, url, text=None):
+        self.url = url
+        self.text = text
+
+
 def test_end_to_end_uses_page_text_keyed_by_handle():
     in_band, _ = enrich_and_filter(
         [_candidate(follower_count=24_700_000)],
         _query(follower_min=5000, follower_max=100000),
-        {"tiktok|sayhey_rey": REAL_PROFILE_TEXT},
+        {
+            "tiktok|sayhey_rey": _Observation(
+                "https://www.tiktok.com/@sayhey_rey", REAL_PROFILE_TEXT
+            )
+        },
     )
     assert len(in_band) == 1
     assert in_band[0].follower_count == 40100
+
+
+def test_observed_url_beats_a_model_mangled_url():
+    mangled = Candidate(
+        handle="uck7zurybxxuoq_uxvr5yoaa",
+        platform="youtube",
+        url="https://www.youtube.com/channel/uck7zurybxxuoq_uxvr5yoaa",
+        source_evidence="",
+    )
+    observed = _Observation("https://www.youtube.com/channel/UCk7ZURybXXuoQ_UXvR5YoAA")
+    enriched = enrich_candidate(mangled, observed_url=observed.url)
+    assert enriched.handle == "UCk7ZURybXXuoQ_UXvR5YoAA"
+    assert enriched.url.endswith("UCk7ZURybXXuoQ_UXvR5YoAA")
+
+
+def test_enrich_all_restores_case_via_observations():
+    mangled = Candidate(
+        handle="uck7zurybxxuoq_uxvr5yoaa",
+        platform="youtube",
+        url="https://www.youtube.com/channel/uck7zurybxxuoq_uxvr5yoaa",
+        source_evidence="",
+    )
+    enriched = enrich_all(
+        [mangled],
+        {
+            "youtube|uck7zurybxxuoq_uxvr5yoaa": _Observation(
+                "https://www.youtube.com/channel/UCk7ZURybXXuoQ_UXvR5YoAA"
+            )
+        },
+    )
+    assert enriched[0].handle == "UCk7ZURybXXuoQ_UXvR5YoAA"

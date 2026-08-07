@@ -18,9 +18,16 @@ EmitFn = Callable[[dict], Awaitable[None]]
 
 
 @dataclass
+class PageObservation:
+    url: str
+    text: Optional[str]
+    is_profile: bool
+
+
+@dataclass
 class PlatformFindings:
     candidates: list[Candidate]
-    page_texts: dict[str, str]
+    observations: dict[str, PageObservation]
 
 SEARCH_TOOL = {
         "type": "function",
@@ -121,7 +128,10 @@ def _usable_results(results) -> list:
 
 
 async def _do_search(
-    platform: str, description: str, emit: EmitFn, page_texts: dict[str, str]
+    platform: str,
+    description: str,
+    emit: EmitFn,
+    observations: dict[str, PageObservation],
 ) -> list[dict]:
     query = build_search_query(platform, description)
     await emit({"type": "agent_step", "agent": platform, "action": "searching", "query": query})
@@ -138,8 +148,11 @@ async def _do_search(
         ref = parse_profile_url(result.url)
         is_profile = is_profile_url(result.url)
         key = dedupe_key(platform, ref.handle)
-        if result.text and (is_profile or key not in page_texts):
-            page_texts[key] = result.text
+        existing = observations.get(key)
+        if existing is None or (is_profile and not existing.is_profile):
+            observations[key] = PageObservation(
+                url=result.url, text=result.text, is_profile=is_profile
+            )
 
         item = {
             "url": result.url,
@@ -186,7 +199,7 @@ async def run_platform_agent(
             "content": _build_task_message(structured_query_json, seed_profile_json),
         },
     ]
-    page_texts: dict[str, str] = {}
+    observations: dict[str, PageObservation] = {}
 
     try:
         for iteration in range(MAX_SEARCH_ITERATIONS + 1):
@@ -218,7 +231,7 @@ async def run_platform_agent(
 
                 if call.name == "search_creators":
                     raw_results = await _do_search(
-                        platform, args["description"], emit, page_texts
+                        platform, args["description"], emit, observations
                     )
                     messages.append(
                         {
@@ -233,10 +246,10 @@ async def run_platform_agent(
                             Candidate(platform=platform, **c)
                             for c in args["candidates"]
                         ],
-                        page_texts=page_texts,
+                        observations=observations,
                     )
 
-        return PlatformFindings(candidates=[], page_texts=page_texts)
+        return PlatformFindings(candidates=[], observations=observations)
     except Exception as exc:
         await emit({"type": "error", "agent": platform, "message": str(exc)})
-        return PlatformFindings(candidates=[], page_texts=page_texts)
+        return PlatformFindings(candidates=[], observations=observations)

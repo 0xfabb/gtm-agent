@@ -16,7 +16,7 @@ def _channel_lookup_params(candidates: list[EnrichedCandidate]) -> list[tuple[st
     lookups: list[tuple[str, str]] = []
     for candidate in candidates:
         handle = candidate.handle
-        if handle.startswith("UC") and len(handle) > 20:
+        if handle[:2].upper() == "UC" and len(handle) > 20:
             lookups.append(("id", handle))
         else:
             lookups.append(("forHandle", f"@{handle}"))

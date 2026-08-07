@@ -5,13 +5,17 @@ from openai import AsyncOpenAI
 
 load_dotenv()
 
+def env(name: str, default: str = "") -> str:
+    return os.environ.get(name, "").strip() or default
+
+
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 EXA_API_KEY = os.environ["EXA_API_KEY"]
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5000")
+FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", "http://localhost:5000")
 
-STRUCTURING_MODEL = os.environ.get("STRUCTURING_MODEL", "gpt-5.6-luna")
-AGENT_MODEL = os.environ.get("AGENT_MODEL", "gpt-5.6-terra")
-RANKING_MODEL = os.environ.get("RANKING_MODEL", "gpt-5.6-terra")
+STRUCTURING_MODEL = env("STRUCTURING_MODEL", "gpt-5.6-luna")
+AGENT_MODEL = env("AGENT_MODEL", "gpt-5.6-terra")
+RANKING_MODEL = env("RANKING_MODEL", "gpt-5.6-terra")
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 exa_client = AsyncExa(api_key=EXA_API_KEY)
@@ -37,7 +41,7 @@ MIN_SHORTLIST_SCORE = 7
 
 REFERENCE_RESULTS_PER_LOOKUP = 5
 
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
+YOUTUBE_API_KEY = env("YOUTUBE_API_KEY")
 YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/channels"
 YOUTUBE_BATCH_SIZE = 50
 

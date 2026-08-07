@@ -72,11 +72,11 @@ async def run_pipeline(prompt: str):
 
     findings = await collector
     all_candidates: list[Candidate] = [c for f in findings for c in f.candidates]
-    page_texts: dict[str, str] = {}
+    observations: dict = {}
     for finding in findings:
-        page_texts.update(finding.page_texts)
+        observations.update(finding.observations)
 
-    enriched = enrich_all(all_candidates, page_texts)
+    enriched = enrich_all(all_candidates, observations)
 
     try:
         enriched = await verify_candidates(enriched)
