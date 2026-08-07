@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowUp, Menu, Sparkles, X } from "lucide-react";
+import { ArrowUp, Menu, Sparkles } from "lucide-react";
 
 import { ChatSidebar, type RunningEntry } from "@/components/research/ChatSidebar";
 import { ResearchTrace } from "@/components/research/ResearchTrace";
