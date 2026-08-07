@@ -4,13 +4,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from enrichment import (
-    enrich_all,
     dedupe_candidates,
-    enrich_and_filter,
+    drop_excluded,
+    enrich_all,
     enrich_candidate,
-    partition_candidates,
+    select_shortlist,
 )
-from schemas import Candidate, EnrichedCandidate, ReferenceAccount, StructuredQuery
+from schemas import Candidate, EnrichedCandidate, RankedCandidate, ReferenceAccount, StructuredQuery
 
 REAL_PROFILE_TEXT = (
     "Reymar (@sayhey_rey) | TikTok  # sayhey_rey  ## Reymar  "
@@ -37,9 +37,29 @@ def _query(**overrides) -> StructuredQuery:
 
 
 def _enriched(**overrides) -> EnrichedCandidate:
-    base = dict(handle="someone", platform="tiktok", url="https://x", follower_count=20000)
+    base = dict(
+        handle="someone",
+        platform="tiktok",
+        url="https://x",
+        follower_count=20000,
+        stat_source="parsed",
+    )
     base.update(overrides)
     return EnrichedCandidate(**base)
+
+
+def _ranked(**overrides) -> RankedCandidate:
+    base = dict(
+        handle="someone",
+        platform="tiktok",
+        url="https://x",
+        follower_count=20000,
+        stat_source="parsed",
+        score=8,
+        rationale="good fit",
+    )
+    base.update(overrides)
+    return RankedCandidate(**base)
 
 
 def test_page_text_overrides_model_supplied_follower_count():
@@ -91,29 +111,12 @@ def test_same_handle_on_different_platforms_is_not_deduped():
     assert len(kept) == 2
 
 
-def test_follower_band_is_enforced():
-    query = _query(follower_min=5000, follower_max=100000)
-    in_band, unverified = partition_candidates(
-        [
-            _enriched(handle="toosmall", follower_count=36),
-            _enriched(handle="toobig", follower_count=5_000_000),
-            _enriched(handle="justright", follower_count=40100),
-        ],
-        query,
-    )
-    assert [c.handle for c in in_band] == ["justright"]
-    assert unverified == []
+def test_drop_excluded_removes_candidates_with_no_follower_count():
+    kept = drop_excluded([_enriched(follower_count=None, stat_source="none")], _query())
+    assert kept == []
 
 
-def test_unknown_follower_count_goes_to_unverified_not_dropped():
-    in_band, unverified = partition_candidates(
-        [_enriched(handle="mystery", follower_count=None)], _query(follower_min=5000)
-    )
-    assert in_band == []
-    assert [c.handle for c in unverified] == ["mystery"]
-
-
-def test_reference_accounts_are_never_returned_as_candidates():
+def test_drop_excluded_removes_reference_accounts():
     query = _query(
         reference_accounts=[
             ReferenceAccount(
@@ -123,23 +126,85 @@ def test_reference_accounts_are_never_returned_as_candidates():
             )
         ]
     )
-    in_band, _ = partition_candidates(
-        [_enriched(handle="DeltaTrendTrading", follower_count=50000)], query
-    )
-    assert in_band == []
+    kept = drop_excluded([_enriched(handle="DeltaTrendTrading")], query)
+    assert kept == []
 
 
-def test_exclusion_keywords_filter_by_bio_and_handle():
+def test_drop_excluded_filters_by_bio_and_handle_keywords():
     query = _query(exclude_keywords=["crypto"])
-    in_band, _ = partition_candidates(
+    kept = drop_excluded(
         [
-            _enriched(handle="cryptoguy", follower_count=20000),
-            _enriched(handle="stockguy", follower_count=20000, bio_snippet="Crypto signals"),
-            _enriched(handle="cleanguy", follower_count=20000, bio_snippet="stocks"),
+            _enriched(handle="cryptoguy"),
+            _enriched(handle="stockguy", bio_snippet="Crypto signals"),
+            _enriched(handle="cleanguy", bio_snippet="stocks"),
         ],
         query,
     )
-    assert [c.handle for c in in_band] == ["cleanguy"]
+    assert [c.handle for c in kept] == ["cleanguy"]
+
+
+def test_select_shortlist_enforces_follower_band():
+    query = _query(follower_min=5000, follower_max=100000)
+    verified, cached = select_shortlist(
+        [
+            _ranked(handle="toosmall", follower_count=36, stat_source="verified"),
+            _ranked(handle="toobig", follower_count=5_000_000, stat_source="verified"),
+            _ranked(handle="justright", follower_count=40100, stat_source="verified"),
+        ],
+        query,
+    )
+    assert [c.handle for c in verified] == ["justright"]
+    assert cached == []
+
+
+def test_select_shortlist_enforces_score_threshold():
+    query = _query()
+    verified, _ = select_shortlist(
+        [
+            _ranked(handle="weak", score=3, stat_source="verified"),
+            _ranked(handle="strong", score=9, stat_source="verified"),
+        ],
+        query,
+        min_score=6,
+    )
+    assert [c.handle for c in verified] == ["strong"]
+
+
+def test_select_shortlist_splits_by_stat_tier():
+    query = _query()
+    verified, cached = select_shortlist(
+        [
+            _ranked(handle="apiconfirmed", stat_source="verified"),
+            _ranked(handle="pageparsed", stat_source="parsed"),
+            _ranked(handle="modelclaimed", stat_source="model"),
+        ],
+        query,
+    )
+    assert {c.handle for c in verified} == {"apiconfirmed", "pageparsed"}
+    assert [c.handle for c in cached] == ["modelclaimed"]
+
+
+def test_select_shortlist_caps_each_tier_at_max_results():
+    query = _query(max_results=2)
+    verified, cached = select_shortlist(
+        [_ranked(handle=f"v{i}", score=9, stat_source="verified") for i in range(5)]
+        + [_ranked(handle=f"c{i}", score=9, stat_source="model") for i in range(5)],
+        query,
+    )
+    assert len(verified) == 2
+    assert len(cached) == 2
+
+
+def test_select_shortlist_is_reapplicable_for_a_wider_band():
+    ranked = [
+        _ranked(handle="within", follower_count=50000, stat_source="verified"),
+        _ranked(handle="outside", follower_count=150000, stat_source="verified"),
+    ]
+    narrow, _ = select_shortlist(ranked, _query(follower_min=0, follower_max=100000))
+    assert [c.handle for c in narrow] == ["within"]
+
+    wide, _ = select_shortlist(ranked, _query(follower_min=0, follower_max=200000))
+    assert {c.handle for c in wide} == {"within", "outside"}
 
 
 class _Observation:
@@ -148,18 +213,16 @@ class _Observation:
         self.text = text
 
 
-def test_end_to_end_uses_page_text_keyed_by_handle():
-    in_band, _ = enrich_and_filter(
+def test_enrich_all_uses_page_text_keyed_by_handle():
+    enriched = enrich_all(
         [_candidate(follower_count=24_700_000)],
-        _query(follower_min=5000, follower_max=100000),
         {
             "tiktok|sayhey_rey": _Observation(
                 "https://www.tiktok.com/@sayhey_rey", REAL_PROFILE_TEXT
             )
         },
     )
-    assert len(in_band) == 1
-    assert in_band[0].follower_count == 40100
+    assert enriched[0].follower_count == 40100
 
 
 def test_observed_url_beats_a_model_mangled_url():

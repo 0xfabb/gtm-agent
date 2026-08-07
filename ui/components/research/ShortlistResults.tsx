@@ -1,18 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, Copy, ShieldQuestion } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CandidateRow } from "@/components/research/CandidateRow";
-import { cn } from "@/lib/utils";
-import type { Candidate, FilterSummary, RankedCandidate } from "@/lib/types";
-
-const PLATFORM_LABEL: Record<string, string> = {
-  tiktok: "TikTok",
-  youtube: "YouTube",
-  instagram: "Instagram",
-};
+import type { RankedCandidate } from "@/lib/types";
 
 function toCsv(rows: RankedCandidate[]): string {
   const header =
@@ -36,7 +29,7 @@ function toCsv(rows: RankedCandidate[]): string {
   return [header, ...lines].join("\n");
 }
 
-function CopyCsvButton({ shortlist }: { shortlist: RankedCandidate[] }) {
+function CopyCsvButton({ rows }: { rows: RankedCandidate[] }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -44,7 +37,7 @@ function CopyCsvButton({ shortlist }: { shortlist: RankedCandidate[] }) {
       size="sm"
       className="gap-1.5 text-xs"
       onClick={async () => {
-        await navigator.clipboard.writeText(toCsv(shortlist));
+        await navigator.clipboard.writeText(toCsv(rows));
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
@@ -55,61 +48,25 @@ function CopyCsvButton({ shortlist }: { shortlist: RankedCandidate[] }) {
   );
 }
 
-function UnverifiedSection({ candidates }: { candidates: Candidate[] }) {
-  const [open, setOpen] = useState(false);
-  if (candidates.length === 0) return null;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border/60 bg-card/40">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-white/2"
-      >
-        <span className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ShieldQuestion className="size-4" />
-          Unverified — no follower count found ({candidates.length})
-        </span>
-        <ChevronDown
-          className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="space-y-1.5 border-t border-border/60 px-4 py-3">
-          <p className="pb-1 text-xs text-muted-foreground">
-            On-niche, but we could not confirm audience size, so they are not ranked.
-          </p>
-          {candidates.map((c) => (
-            <div key={`${c.platform}-${c.handle}`} className="flex items-center gap-2 text-sm">
-              <span className="shrink-0 rounded bg-white/6 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {PLATFORM_LABEL[c.platform] ?? c.platform}
-              </span>
-              <a
-                href={c.url}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate hover:text-primary hover:underline"
-              >
-                {c.handle}
-              </a>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ShortlistResults({
   shortlist,
-  unverified = [],
-  summary,
+  cached = [],
 }: {
   shortlist: RankedCandidate[];
-  unverified?: Candidate[];
-  summary?: FilterSummary | null;
+  cached?: RankedCandidate[];
 }) {
-  if (shortlist.length === 0 && unverified.length === 0) {
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+  function toggle(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  if (shortlist.length === 0 && cached.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border/60 px-4 py-10 text-center">
         <p className="text-sm text-muted-foreground">No candidates matched the brief.</p>
@@ -121,33 +78,56 @@ export function ShortlistResults({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold tracking-wide text-primary uppercase">
-          Shortlist
-          {summary && (
-            <span className="tabular ml-2 font-normal text-muted-foreground normal-case">
-              {shortlist.length} of {summary.seen} considered
-              {summary.verified > 0 && ` · ${summary.verified} verified`}
-            </span>
-          )}
-        </p>
-        {shortlist.length > 0 && <CopyCsvButton shortlist={shortlist} />}
-      </div>
-
+    <div className="space-y-4">
       {shortlist.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-          {shortlist.map((candidate, i) => (
-            <CandidateRow
-              key={`${candidate.platform}-${candidate.handle}`}
-              candidate={candidate}
-              rank={i + 1}
-            />
-          ))}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              Ranked results — top {shortlist.length}
+            </p>
+            <CopyCsvButton rows={[...shortlist, ...cached]} />
+          </div>
+          <div className="flex flex-col gap-2">
+            {shortlist.map((candidate) => {
+              const key = `${candidate.platform}-${candidate.handle}`;
+              return (
+                <CandidateRow
+                  key={key}
+                  candidate={candidate}
+                  verified
+                  expanded={expandedKeys.has(key)}
+                  onToggleExpand={() => toggle(key)}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
 
-      <UnverifiedSection candidates={unverified} />
+      {cached.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <p className="font-mono text-[11px] font-semibold tracking-wide text-muted-foreground/60 uppercase">
+              Unverified — cached stats
+            </p>
+            <span className="h-px flex-1 bg-border/60" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {cached.map((candidate) => {
+              const key = `${candidate.platform}-${candidate.handle}`;
+              return (
+                <CandidateRow
+                  key={key}
+                  candidate={candidate}
+                  verified={false}
+                  expanded={expandedKeys.has(key)}
+                  onToggleExpand={() => toggle(key)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ from config import (
     openai_client,
 )
 import exa_cache
+from cost import CostTracker
 from schemas import Candidate
 from urls import dedupe_key, is_profile_url, parse_profile_url
 
@@ -199,6 +200,7 @@ async def run_platform_agent(
     structured_query_json: str,
     seed_profile_json: Optional[str],
     emit: EmitFn,
+    tracker: Optional[CostTracker] = None,
 ) -> PlatformFindings:
     messages: list[dict] = [
         {"role": "system", "content": _build_system_prompt(platform)},
@@ -228,6 +230,8 @@ async def run_platform_agent(
                 input=messages,
                 tools=[SUBMIT_TOOL] if is_final else TOOLS,
             )
+            if tracker:
+                tracker.record_response(AGENT_MODEL, response)
             messages += response.output
 
             function_calls = [item for item in response.output if item.type == "function_call"]

@@ -1,15 +1,21 @@
-from typing import Optional, Protocol
+from typing import Awaitable, Callable, Optional, Protocol
 
 import httpx
 
 from config import YOUTUBE_API_KEY, YOUTUBE_API_URL, YOUTUBE_BATCH_SIZE
 from schemas import EnrichedCandidate
 
+EmitFn = Callable[[dict], Awaitable[None]]
+
 
 class PlatformVerifier(Protocol):
     async def verify(
         self, candidates: list[EnrichedCandidate]
     ) -> dict[str, EnrichedCandidate]: ...
+
+
+async def _noop_emit(event: dict) -> None:
+    return None
 
 
 def _channel_lookup_params(candidates: list[EnrichedCandidate]) -> list[tuple[str, str]]:
@@ -63,10 +69,30 @@ def _apply_channel(candidate: EnrichedCandidate, item: dict) -> EnrichedCandidat
 
 
 async def verify_youtube(
-    candidates: list[EnrichedCandidate],
+    candidates: list[EnrichedCandidate], emit: EmitFn = _noop_emit
 ) -> list[EnrichedCandidate]:
-    if not YOUTUBE_API_KEY or not candidates:
+    if not candidates:
         return candidates
+
+    if not YOUTUBE_API_KEY:
+        await emit(
+            {
+                "type": "agent_step",
+                "agent": "verification",
+                "action": "skipped",
+                "result": {"note": "no YOUTUBE_API_KEY configured"},
+            }
+        )
+        return candidates
+
+    await emit(
+        {
+            "type": "agent_step",
+            "agent": "verification",
+            "action": "verifying",
+            "query": f"confirming subscriber counts for {len(candidates)} YouTube channels",
+        }
+    )
 
     by_handle: dict[str, EnrichedCandidate] = {}
     by_id: dict[str, EnrichedCandidate] = {}
@@ -80,29 +106,78 @@ async def verify_youtube(
     index_of = {id(c): i for i, c in enumerate(candidates)}
 
     async with httpx.AsyncClient() as client:
-        ids = list(by_id)
-        for start in range(0, len(ids), YOUTUBE_BATCH_SIZE):
-            items = await _fetch_channels(client, "id", ids[start : start + YOUTUBE_BATCH_SIZE])
-            for item in items:
-                candidate = by_id.get(item.get("id", ""))
-                if candidate is not None:
-                    resolved[index_of[id(candidate)]] = _apply_channel(candidate, item)
+        try:
+            ids = list(by_id)
+            for start in range(0, len(ids), YOUTUBE_BATCH_SIZE):
+                items = await _fetch_channels(
+                    client, "id", ids[start : start + YOUTUBE_BATCH_SIZE]
+                )
+                for item in items:
+                    candidate = by_id.get(item.get("id", ""))
+                    if candidate is not None:
+                        updated = _apply_channel(candidate, item)
+                        resolved[index_of[id(candidate)]] = updated
+                        await emit(
+                            {
+                                "type": "agent_step",
+                                "agent": "verification",
+                                "action": "found",
+                                "result": {
+                                    "url": updated.url,
+                                    "title": f"{updated.handle} — {updated.follower_count:,} subscribers"
+                                    if updated.follower_count is not None
+                                    else updated.handle,
+                                },
+                            }
+                        )
 
-        for handle, candidate in by_handle.items():
-            items = await _fetch_channels(client, "forHandle", [handle])
-            if items:
-                resolved[index_of[id(candidate)]] = _apply_channel(candidate, items[0])
+            for handle, candidate in by_handle.items():
+                items = await _fetch_channels(client, "forHandle", [handle])
+                if items:
+                    updated = _apply_channel(candidate, items[0])
+                    resolved[index_of[id(candidate)]] = updated
+                    await emit(
+                        {
+                            "type": "agent_step",
+                            "agent": "verification",
+                            "action": "found",
+                            "result": {
+                                "url": updated.url,
+                                "title": f"{updated.handle} — {updated.follower_count:,} subscribers"
+                                if updated.follower_count is not None
+                                else updated.handle,
+                            },
+                        }
+                    )
+                else:
+                    await emit(
+                        {
+                            "type": "agent_step",
+                            "agent": "verification",
+                            "action": "skipped",
+                            "result": {"note": f"@{handle} not found via API — using cached stats"},
+                        }
+                    )
+        except Exception as exc:
+            await emit(
+                {
+                    "type": "agent_step",
+                    "agent": "verification",
+                    "action": "skipped",
+                    "result": {"note": f"YouTube API error — using cached stats ({exc})"},
+                }
+            )
 
     return [resolved.get(i, candidate) for i, candidate in enumerate(candidates)]
 
 
 async def verify_candidates(
-    candidates: list[EnrichedCandidate],
+    candidates: list[EnrichedCandidate], emit: EmitFn = _noop_emit
 ) -> list[EnrichedCandidate]:
     youtube = [c for c in candidates if c.platform == "youtube"]
     if not youtube:
         return candidates
 
-    verified = await verify_youtube(youtube)
+    verified = await verify_youtube(youtube, emit)
     replacements = dict(zip((id(c) for c in youtube), verified))
     return [replacements.get(id(c), c) for c in candidates]

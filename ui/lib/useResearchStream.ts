@@ -3,9 +3,11 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   AgentStep,
-  Candidate,
+  CostSummary,
   FilterSummary,
   RankedCandidate,
+  RefilterResponse,
+  RefineResponse,
   ResearchEvent,
   SeedProfile,
   StructuredQuery,
@@ -19,32 +21,43 @@ export type ResearchStatus =
   | "researching"
   | "ranking"
   | "done"
-  | "error";
+  | "error"
+  | "recomputing";
 
 interface ResearchState {
   status: ResearchStatus;
+  runId: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
   structuredQuery: StructuredQuery | null;
   seedProfile: SeedProfile | null;
   trace: Record<string, AgentStep[]>;
   shortlist: RankedCandidate[];
-  unverified: Candidate[];
+  cached: RankedCandidate[];
   summary: FilterSummary | null;
+  cost: CostSummary | null;
   errors: { agent: string; message: string }[];
 }
 
 const initialState: ResearchState = {
   status: "idle",
+  runId: null,
+  startedAt: null,
+  finishedAt: null,
   structuredQuery: null,
   seedProfile: null,
   trace: {},
   shortlist: [],
-  unverified: [],
+  cached: [],
   summary: null,
+  cost: null,
   errors: [],
 };
 
 function applyEvent(state: ResearchState, event: ResearchEvent): ResearchState {
   switch (event.type) {
+    case "run_started":
+      return { ...state, runId: event.run_id, startedAt: Date.now() };
     case "structured_query":
       return { ...state, status: "researching", structuredQuery: event.data };
     case "seed_profile":
@@ -53,8 +66,8 @@ function applyEvent(state: ResearchState, event: ResearchEvent): ResearchState {
       const step: AgentStep = {
         agent: event.agent,
         action: event.action,
-        query: event.action === "searching" ? event.query : undefined,
-        result: event.action === "found" ? event.result : undefined,
+        query: event.query,
+        result: event.result,
         at: Date.now(),
       };
       const existing = state.trace[event.agent] ?? [];
@@ -68,13 +81,15 @@ function applyEvent(state: ResearchState, event: ResearchEvent): ResearchState {
     case "filtered":
       return { ...state, status: "ranking", summary: event.data };
     case "ranking_complete":
-      return { ...state, status: "ranking", shortlist: event.data };
+      return { ...state, status: "ranking" };
     case "done":
       return {
         ...state,
         status: "done",
+        finishedAt: Date.now(),
         shortlist: event.shortlist,
-        unverified: event.unverified ?? [],
+        cached: event.cached ?? [],
+        cost: event.cost,
       };
     default:
       return state;
@@ -138,5 +153,58 @@ export function useResearchStream() {
     }
   }, []);
 
-  return { ...state, start, reset };
+  const refilter = useCallback(
+    async (overrides: { follower_min?: number; follower_max?: number; max_results?: number }) => {
+      const runId = state.runId;
+      if (!runId) return;
+
+      setState((prev) => ({ ...prev, status: "recomputing" }));
+
+      const response = await fetch(`${API_URL}/api/refilter`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ run_id: runId, ...overrides }),
+      });
+
+      if (!response.ok) {
+        setState((prev) => ({
+          ...prev,
+          status: "done",
+          errors: [...prev.errors, { agent: "refilter", message: `Refilter failed: ${response.status}` }],
+        }));
+        return;
+      }
+
+      const data = (await response.json()) as RefilterResponse;
+      setState((prev) => ({
+        ...prev,
+        status: "done",
+        shortlist: data.shortlist,
+        cached: data.cached,
+        structuredQuery: prev.structuredQuery
+          ? { ...prev.structuredQuery, ...overrides }
+          : prev.structuredQuery,
+      }));
+    },
+    [state.runId]
+  );
+
+  const refine = useCallback(
+    async (text: string): Promise<RefineResponse | null> => {
+      const runId = state.runId;
+      if (!runId) return null;
+
+      const response = await fetch(`${API_URL}/api/refine`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ run_id: runId, text }),
+      });
+
+      if (!response.ok) return null;
+      return (await response.json()) as RefineResponse;
+    },
+    [state.runId]
+  );
+
+  return { ...state, start, reset, refilter, refine };
 }

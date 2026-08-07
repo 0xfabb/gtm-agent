@@ -1,6 +1,9 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
-from config import MIN_SHORTLIST_SCORE, RANKING_MODEL, openai_client
+from config import RANKING_MODEL, openai_client
+from cost import CostTracker
 from schemas import EnrichedCandidate, Platform, RankedCandidate, StructuredQuery
 from urls import dedupe_key
 
@@ -18,11 +21,13 @@ references — but override it when the text clearly shows a poor niche fit.
 Score each candidate 1-10 on how well they fit the brief's niche, audience and \
 positioning, and write one sentence explaining the score.
 
-Score on niche and positioning fit. Do not penalise a candidate for a missing \
-or unverified stat, and do not re-apply the follower band — that is already \
-enforced. A 6 means a useful, on-niche creator worth a look; 8-10 means a \
-clear match. Reserve 1-5 for creators who are genuinely off-niche or wrong for \
-the audience.
+Score purely on niche and positioning fit. Some candidates you are given may \
+fall outside the brief's stated follower range — score them on fit anyway; \
+whether they are shown is decided separately from your score. Do not penalise \
+a candidate for a missing or unverified stat either.
+
+A 6 means a useful, on-niche creator worth a look; 8-10 means a clear match. \
+Reserve 1-5 for creators who are genuinely off-niche or wrong for the audience.
 
 Return every candidate you were given, identified by handle and platform. \
 Never invent a candidate that was not in the list."""
@@ -53,7 +58,9 @@ def _payload(candidate: EnrichedCandidate) -> dict:
 
 
 async def rank_candidates(
-    structured_query: StructuredQuery, candidates: list[EnrichedCandidate]
+    structured_query: StructuredQuery,
+    candidates: list[EnrichedCandidate],
+    tracker: Optional[CostTracker] = None,
 ) -> list[RankedCandidate]:
     if not candidates:
         return []
@@ -72,6 +79,8 @@ async def rank_candidates(
         ],
         text_format=_RankingResult,
     )
+    if tracker:
+        tracker.record_response(RANKING_MODEL, response)
 
     by_key = {dedupe_key(c.platform, c.handle): c for c in candidates}
 
@@ -89,6 +98,4 @@ async def rank_candidates(
         )
 
     ranked.sort(key=lambda r: r.score, reverse=True)
-    qualified = [r for r in ranked if r.score >= MIN_SHORTLIST_SCORE]
-    limit = structured_query.max_results or len(qualified)
-    return qualified[:limit]
+    return ranked

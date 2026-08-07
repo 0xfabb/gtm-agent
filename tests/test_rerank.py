@@ -56,7 +56,7 @@ def test_candidate_text_combines_handle_and_bio():
 
 
 def test_reranks_candidates_by_similarity(monkeypatch):
-    async def fake_embed(texts):
+    async def fake_embed(texts, tracker=None):
         vectors = {
             0: [1.0, 0.0],
             1: [0.0, 1.0],

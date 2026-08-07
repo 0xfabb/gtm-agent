@@ -1,8 +1,12 @@
 from typing import Optional
 
+from config import MIN_SHORTLIST_SCORE
 from extraction import engagement_band, extract_profile_stats, likes_per_follower
-from schemas import Candidate, EnrichedCandidate, StructuredQuery
+from schemas import Candidate, EnrichedCandidate, RankedCandidate, StructuredQuery
 from urls import dedupe_key, normalize_url, parse_profile_url
+
+VERIFIED_TIERS = ("verified", "parsed")
+CACHED_TIERS = ("model",)
 
 
 def _resolve_identity(
@@ -80,29 +84,19 @@ def _matches_exclusions(candidate: EnrichedCandidate, query: StructuredQuery) ->
     )
 
 
-def partition_candidates(
+def drop_excluded(
     candidates: list[EnrichedCandidate], query: StructuredQuery
-) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
-    in_band: list[EnrichedCandidate] = []
-    unverified: list[EnrichedCandidate] = []
-
+) -> list[EnrichedCandidate]:
+    kept = []
     for candidate in candidates:
         if _is_reference(candidate, query):
             continue
         if _matches_exclusions(candidate, query):
             continue
-
-        followers = candidate.follower_count
-        if followers is None:
-            unverified.append(candidate)
+        if candidate.follower_count is None:
             continue
-        if query.follower_min is not None and followers < query.follower_min:
-            continue
-        if query.follower_max is not None and followers > query.follower_max:
-            continue
-        in_band.append(candidate)
-
-    return in_band, unverified
+        kept.append(candidate)
+    return kept
 
 
 def enrich_all(
@@ -124,9 +118,27 @@ def enrich_all(
     return dedupe_candidates(enriched)
 
 
-def enrich_and_filter(
-    candidates: list[Candidate],
+def _in_band(candidate: RankedCandidate, query: StructuredQuery) -> bool:
+    followers = candidate.follower_count
+    if followers is None:
+        return False
+    if query.follower_min is not None and followers < query.follower_min:
+        return False
+    if query.follower_max is not None and followers > query.follower_max:
+        return False
+    return True
+
+
+def select_shortlist(
+    ranked: list[RankedCandidate],
     query: StructuredQuery,
-    observations: Optional[dict] = None,
-) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
-    return partition_candidates(enrich_all(candidates, observations), query)
+    min_score: int = MIN_SHORTLIST_SCORE,
+) -> tuple[list[RankedCandidate], list[RankedCandidate]]:
+    qualified = [c for c in ranked if c.score >= min_score and _in_band(c, query)]
+    qualified.sort(key=lambda c: c.score, reverse=True)
+
+    verified = [c for c in qualified if c.stat_source in VERIFIED_TIERS]
+    cached = [c for c in qualified if c.stat_source in CACHED_TIERS]
+
+    limit = query.max_results or len(qualified)
+    return verified[:limit], cached[:limit]

@@ -4,9 +4,11 @@ from agents.ranking import rank_candidates
 from agents.reference_resolver import resolve_references
 from agents.research_agent import run_platform_agent
 from agents.structuring import structure_query
-from enrichment import enrich_all, partition_candidates
-from rerank import rerank_by_similarity
+from cost import CostTracker
+from enrichment import drop_excluded, enrich_all, select_shortlist
+from run_cache import new_run_id, store_run
 from schemas import Candidate
+from rerank import rerank_by_similarity
 from verification import verify_candidates
 
 _QUEUE_DONE = object()
@@ -21,11 +23,15 @@ async def _drain(queue: asyncio.Queue):
 
 
 async def run_pipeline(prompt: str):
+    tracker = CostTracker()
+    run_id = new_run_id()
+    yield {"type": "run_started", "run_id": run_id}
+
     try:
-        structured_query = await structure_query(prompt)
+        structured_query = await structure_query(prompt, tracker)
     except Exception as exc:
         yield {"type": "error", "agent": "structuring", "message": str(exc)}
-        yield {"type": "done", "shortlist": []}
+        yield {"type": "done", "run_id": run_id, "shortlist": [], "cached": [], "cost": tracker.summary()}
         return
 
     yield {"type": "structured_query", "data": structured_query.model_dump()}
@@ -39,7 +45,7 @@ async def run_pipeline(prompt: str):
     if structured_query.reference_accounts:
 
         async def run_resolver():
-            result = await resolve_references(structured_query.reference_accounts, emit)
+            result = await resolve_references(structured_query.reference_accounts, emit, tracker)
             await queue.put(_QUEUE_DONE)
             return result
 
@@ -56,7 +62,9 @@ async def run_pipeline(prompt: str):
 
     agent_tasks = [
         asyncio.create_task(
-            run_platform_agent(platform, structured_query_json, seed_profile_json, emit)
+            run_platform_agent(
+                platform, structured_query_json, seed_profile_json, emit, tracker
+            )
         )
         for platform in structured_query.platforms
     ]
@@ -79,42 +87,61 @@ async def run_pipeline(prompt: str):
 
     enriched = enrich_all(all_candidates, observations)
 
+    verify_queue: asyncio.Queue = asyncio.Queue()
+
+    async def verify_emit(event: dict) -> None:
+        await verify_queue.put(event)
+
+    async def run_verification():
+        result = await verify_candidates(enriched, verify_emit)
+        await verify_queue.put(_QUEUE_DONE)
+        return result
+
+    verify_task = asyncio.create_task(run_verification())
+    async for event in _drain(verify_queue):
+        yield event
     try:
-        enriched = await verify_candidates(enriched)
+        enriched = await verify_task
     except Exception as exc:
         yield {"type": "error", "agent": "verification", "message": str(exc)}
 
-    in_band, unverified = partition_candidates(enriched, structured_query)
+    keep = drop_excluded(enriched, structured_query)
 
     if seed_profile is not None:
         try:
-            in_band = await rerank_by_similarity(in_band, seed_profile)
+            keep = await rerank_by_similarity(keep, seed_profile, tracker)
         except Exception as exc:
             yield {"type": "error", "agent": "rerank", "message": str(exc)}
+
+    try:
+        ranked_all = await rank_candidates(structured_query, keep, tracker)
+    except Exception as exc:
+        yield {"type": "error", "agent": "ranking", "message": str(exc)}
+        ranked_all = []
+
+    store_run(run_id, structured_query, ranked_all)
+
+    verified_tier, cached_tier = select_shortlist(ranked_all, structured_query)
 
     yield {
         "type": "filtered",
         "data": {
             "seen": len(all_candidates),
-            "in_band": len(in_band),
-            "unverified": len(unverified),
-            "verified": sum(1 for c in in_band if c.stat_source == "verified"),
+            "ranked": len(ranked_all),
+            "verified_shown": len(verified_tier),
+            "cached_shown": len(cached_tier),
         },
     }
 
-    try:
-        ranked = await rank_candidates(structured_query, in_band)
-    except Exception as exc:
-        yield {"type": "error", "agent": "ranking", "message": str(exc)}
-        ranked = []
+    verified_dicts = [c.model_dump() for c in verified_tier]
+    cached_dicts = [c.model_dump() for c in cached_tier]
 
-    ranked_dicts = [r.model_dump() for r in ranked]
-    unverified_dicts = [c.model_dump() for c in unverified]
-
-    yield {"type": "ranking_complete", "data": ranked_dicts}
+    yield {"type": "ranking_complete", "data": verified_dicts + cached_dicts}
     yield {
         "type": "done",
-        "shortlist": ranked_dicts,
-        "unverified": unverified_dicts,
+        "run_id": run_id,
+        "shortlist": verified_dicts,
+        "cached": cached_dicts,
         "considered": len(all_candidates),
+        "cost": tracker.summary(),
     }

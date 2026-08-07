@@ -1,6 +1,6 @@
 import type {
   AgentStep,
-  Candidate,
+  CostSummary,
   RankedCandidate,
   SeedProfile,
   StructuredQuery,
@@ -12,13 +12,17 @@ const EMPTY_CHATS: ChatSession[] = [];
 
 export interface ChatSession {
   id: string;
+  runId: string | null;
+  parentId?: string | null;
   prompt: string;
   createdAt: number;
+  elapsedMs?: number | null;
   structuredQuery: StructuredQuery | null;
   seedProfile?: SeedProfile | null;
   trace: Record<string, AgentStep[]>;
   shortlist: RankedCandidate[];
-  unverified?: Candidate[];
+  cached?: RankedCandidate[];
+  cost?: CostSummary | null;
 }
 
 let cache: ChatSession[] | null = null;

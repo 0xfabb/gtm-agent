@@ -2,6 +2,7 @@ import math
 from typing import Optional
 
 from config import EMBEDDING_MODEL, openai_client
+from cost import CostTracker
 from schemas import EnrichedCandidate, SeedProfile
 
 
@@ -35,15 +36,21 @@ def candidate_text(candidate: EnrichedCandidate) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
-async def _embed(texts: list[str]) -> list[list[float]]:
+async def _embed(
+    texts: list[str], tracker: Optional[CostTracker] = None
+) -> list[list[float]]:
     response = await openai_client.embeddings.create(
         model=EMBEDDING_MODEL, input=texts
     )
+    if tracker:
+        tracker.record_response(EMBEDDING_MODEL, response)
     return [item.embedding for item in response.data]
 
 
 async def rerank_by_similarity(
-    candidates: list[EnrichedCandidate], profile: Optional[SeedProfile]
+    candidates: list[EnrichedCandidate],
+    profile: Optional[SeedProfile],
+    tracker: Optional[CostTracker] = None,
 ) -> list[EnrichedCandidate]:
     if profile is None or len(candidates) < 2:
         return candidates
@@ -53,7 +60,7 @@ async def rerank_by_similarity(
         return candidates
 
     texts = [candidate_text(c) for c in candidates]
-    embeddings = await _embed([target, *texts])
+    embeddings = await _embed([target, *texts], tracker)
     seed_vector, candidate_vectors = embeddings[0], embeddings[1:]
 
     scored = []

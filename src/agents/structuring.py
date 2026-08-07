@@ -3,6 +3,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel
 
 from config import DEFAULT_FOLLOWER_MIN, DEFAULT_MAX_RESULTS, STRUCTURING_MODEL, openai_client
+from cost import CostTracker
 from schemas import Platform, ReferenceAccount, StructuredQuery
 from urls import find_profile_urls, parse_profile_url
 
@@ -76,7 +77,9 @@ def apply_defaults(query: StructuredQuery) -> StructuredQuery:
     return query.model_copy(update=updates)
 
 
-async def structure_query(prompt: str) -> StructuredQuery:
+async def structure_query(
+    prompt: str, tracker: Optional[CostTracker] = None
+) -> StructuredQuery:
     references = extract_reference_accounts(prompt)
 
     response = await openai_client.responses.parse(
@@ -90,6 +93,8 @@ async def structure_query(prompt: str) -> StructuredQuery:
         ],
         text_format=_QueryDraft,
     )
+    if tracker:
+        tracker.record_response(STRUCTURING_MODEL, response)
 
     draft = response.output_parsed
     query = StructuredQuery(

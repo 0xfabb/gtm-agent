@@ -4,6 +4,7 @@ from typing import Awaitable, Callable, Optional
 
 import exa_cache
 from config import BIO_LINK_HOSTS, REFERENCE_RESULTS_PER_LOOKUP, STRUCTURING_MODEL, openai_client
+from cost import CostTracker
 from schemas import ReferenceAccount, SeedProfile
 
 EmitFn = Callable[[dict], Awaitable[None]]
@@ -94,7 +95,9 @@ async def _lookup_reference(reference: ReferenceAccount, emit: EmitFn) -> str:
 
 
 async def resolve_references(
-    references: list[ReferenceAccount], emit: EmitFn
+    references: list[ReferenceAccount],
+    emit: EmitFn,
+    tracker: Optional[CostTracker] = None,
 ) -> Optional[SeedProfile]:
     if not references:
         return None
@@ -135,5 +138,8 @@ async def resolve_references(
     except Exception as exc:
         await emit({"type": "error", "agent": "references", "message": str(exc)})
         return None
+
+    if tracker:
+        tracker.record_response(STRUCTURING_MODEL, response)
 
     return response.output_parsed

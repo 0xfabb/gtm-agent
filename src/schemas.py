@@ -9,6 +9,27 @@ class ResearchRequest(BaseModel):
     prompt: str
 
 
+class RefilterRequest(BaseModel):
+    run_id: str
+    follower_min: Optional[int] = None
+    follower_max: Optional[int] = None
+    max_results: Optional[int] = None
+
+
+class RefineRequest(BaseModel):
+    run_id: str
+    text: str
+
+
+class RefineDecision(BaseModel):
+    kind: Literal["filter", "new_run"]
+    follower_min: Optional[int] = None
+    follower_max: Optional[int] = None
+    max_results: Optional[int] = None
+    combined_prompt: Optional[str] = None
+    explanation: str
+
+
 class ReferenceAccount(BaseModel):
     platform: Platform
     handle: str

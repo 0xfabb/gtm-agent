@@ -55,35 +55,65 @@ export interface RankedCandidate extends Candidate {
 
 export interface FilterSummary {
   seen: number;
-  in_band: number;
-  unverified: number;
-  verified: number;
+  ranked: number;
+  verified_shown: number;
+  cached_shown: number;
 }
+
+export interface CostSummary {
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  usd: number;
+}
+
+export type StepAction = "searching" | "found" | "verifying" | "skipped";
 
 export interface AgentStep {
   agent: string;
-  action: "searching" | "found";
+  action: StepAction;
   query?: string;
-  result?: { url: string; title: string | null };
+  result?: { url?: string; title?: string | null; note?: string };
   at: number;
 }
 
+export type AgentStatus = "pending" | "active" | "done" | "failed";
+
 export type ResearchEvent =
+  | { type: "run_started"; run_id: string }
   | { type: "structured_query"; data: StructuredQuery }
   | { type: "seed_profile"; data: SeedProfile }
-  | { type: "agent_step"; agent: string; action: "searching"; query: string }
   | {
       type: "agent_step";
       agent: string;
-      action: "found";
-      result: { url: string; title: string | null };
+      action: StepAction;
+      query?: string;
+      result?: { url?: string; title?: string | null; note?: string };
     }
   | { type: "error"; agent: string; message: string }
   | { type: "filtered"; data: FilterSummary }
   | { type: "ranking_complete"; data: RankedCandidate[] }
   | {
       type: "done";
+      run_id: string;
       shortlist: RankedCandidate[];
-      unverified: Candidate[];
+      cached: RankedCandidate[];
       considered: number;
+      cost: CostSummary;
     };
+
+export interface RefilterResponse {
+  shortlist: RankedCandidate[];
+  cached: RankedCandidate[];
+  considered: number;
+}
+
+export interface RefineResponse {
+  kind: "filter" | "new_run";
+  follower_min: number | null;
+  follower_max: number | null;
+  max_results: number | null;
+  combined_prompt: string | null;
+  explanation: string;
+  cost: CostSummary;
+}
