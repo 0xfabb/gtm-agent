@@ -1,11 +1,20 @@
 import asyncio
 
 from agents.ranking import rank_candidates
+from agents.reference_resolver import resolve_references
 from agents.research_agent import run_platform_agent
 from agents.structuring import structure_query
 from schemas import Candidate
 
 _QUEUE_DONE = object()
+
+
+async def _drain(queue: asyncio.Queue):
+    while True:
+        event = await queue.get()
+        if event is _QUEUE_DONE:
+            return
+        yield event
 
 
 async def run_pipeline(prompt: str):
@@ -23,9 +32,29 @@ async def run_pipeline(prompt: str):
     async def emit(event: dict) -> None:
         await queue.put(event)
 
+    seed_profile = None
+    if structured_query.reference_accounts:
+
+        async def run_resolver():
+            result = await resolve_references(structured_query.reference_accounts, emit)
+            await queue.put(_QUEUE_DONE)
+            return result
+
+        resolver_task = asyncio.create_task(run_resolver())
+        async for event in _drain(queue):
+            yield event
+        seed_profile = await resolver_task
+
+        if seed_profile is not None:
+            yield {"type": "seed_profile", "data": seed_profile.model_dump()}
+
     structured_query_json = structured_query.model_dump_json()
+    seed_profile_json = seed_profile.model_dump_json() if seed_profile else None
+
     agent_tasks = [
-        asyncio.create_task(run_platform_agent(platform, structured_query_json, emit))
+        asyncio.create_task(
+            run_platform_agent(platform, structured_query_json, seed_profile_json, emit)
+        )
         for platform in structured_query.platforms
     ]
 
@@ -36,10 +65,7 @@ async def run_pipeline(prompt: str):
 
     collector = asyncio.create_task(run_all_agents())
 
-    while True:
-        event = await queue.get()
-        if event is _QUEUE_DONE:
-            break
+    async for event in _drain(queue):
         yield event
 
     all_candidates: list[Candidate] = [c for batch in await collector for c in batch]

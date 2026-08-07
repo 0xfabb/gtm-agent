@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { AgentStep, RankedCandidate, ResearchEvent, StructuredQuery } from "./types";
+import type {
+  AgentStep,
+  RankedCandidate,
+  ResearchEvent,
+  SeedProfile,
+  StructuredQuery,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8500";
 
@@ -16,6 +22,7 @@ export type ResearchStatus =
 interface ResearchState {
   status: ResearchStatus;
   structuredQuery: StructuredQuery | null;
+  seedProfile: SeedProfile | null;
   trace: Record<string, AgentStep[]>;
   shortlist: RankedCandidate[];
   errors: { agent: string; message: string }[];
@@ -24,6 +31,7 @@ interface ResearchState {
 const initialState: ResearchState = {
   status: "idle",
   structuredQuery: null,
+  seedProfile: null,
   trace: {},
   shortlist: [],
   errors: [],
@@ -33,6 +41,8 @@ function applyEvent(state: ResearchState, event: ResearchEvent): ResearchState {
   switch (event.type) {
     case "structured_query":
       return { ...state, status: "researching", structuredQuery: event.data };
+    case "seed_profile":
+      return { ...state, seedProfile: event.data };
     case "agent_step": {
       const step: AgentStep = {
         agent: event.agent,

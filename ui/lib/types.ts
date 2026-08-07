@@ -21,6 +21,14 @@ export interface StructuredQuery {
   other_notes: string | null;
 }
 
+export interface SeedProfile {
+  summary: string;
+  niche_keywords: string[];
+  content_format: string | null;
+  audience: string | null;
+  search_descriptions: string[];
+}
+
 export interface Candidate {
   handle: string;
   platform: Platform;
@@ -46,6 +54,7 @@ export interface AgentStep {
 
 export type ResearchEvent =
   | { type: "structured_query"; data: StructuredQuery }
+  | { type: "seed_profile"; data: SeedProfile }
   | { type: "agent_step"; agent: string; action: "searching"; query: string }
   | {
       type: "agent_step";

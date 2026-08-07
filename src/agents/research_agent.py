@@ -1,5 +1,5 @@
 import json
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Optional
 
 from config import (
     AGENT_MODEL,
@@ -123,14 +123,30 @@ async def _do_search(platform: str, query: str, emit: EmitFn) -> list[dict]:
     return raw_results
 
 
+def _build_task_message(
+    structured_query_json: str, seed_profile_json: Optional[str]
+) -> str:
+    if seed_profile_json:
+        return (
+            f"Structured brief filters (JSON): {structured_query_json}\n\n"
+            f"Seed profile describing the reference creators (JSON): {seed_profile_json}\n\n"
+            "Search for creators matching the seed profile's search_descriptions. "
+            "Do not return the reference accounts themselves."
+        )
+    return f"Structured brief filters (JSON): {structured_query_json}"
+
+
 async def run_platform_agent(
-    platform: str, structured_query_json: str, emit: EmitFn
+    platform: str,
+    structured_query_json: str,
+    seed_profile_json: Optional[str],
+    emit: EmitFn,
 ) -> list[Candidate]:
     messages: list[dict] = [
         {"role": "system", "content": _build_system_prompt(platform)},
         {
             "role": "user",
-            "content": f"Structured brief filters (JSON): {structured_query_json}",
+            "content": _build_task_message(structured_query_json, seed_profile_json),
         },
     ]
 

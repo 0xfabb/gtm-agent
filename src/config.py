@@ -28,3 +28,17 @@ RESULTS_PER_SEARCH = 8
 DEFAULT_FOLLOWER_MIN = 5_000
 DEFAULT_MAX_RESULTS = 10
 MIN_SHORTLIST_SCORE = 7
+
+REFERENCE_RESULTS_PER_LOOKUP = 5
+
+BIO_LINK_HOSTS = (
+    "linktr.ee",
+    "beacons.ai",
+    "stan.store",
+    "bio.link",
+    "allmylinks.com",
+    "komi.io",
+    "taplink.cc",
+    "snipfeed.co",
+    "linkin.bio",
+)
