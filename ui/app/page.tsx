@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowUp, Sparkles } from "lucide-react";
+import { ArrowUp, Menu, Sparkles, X } from "lucide-react";
 
 import { ChatSidebar, type RunningEntry } from "@/components/research/ChatSidebar";
 import { ResearchTrace } from "@/components/research/ResearchTrace";
@@ -39,6 +39,7 @@ export default function Home() {
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [runningParentId, setRunningParentId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const savedRef = useRef(false);
 
   const chats = useSyncExternalStore(subscribeChats, getChatsSnapshot, getServerChatsSnapshot);
@@ -127,12 +128,14 @@ export default function Home() {
     setRefineText("");
     savedRef.current = false;
     setRunningParentId(null);
+    setSidebarOpen(false);
   }
 
   function handleSelectChat(id: string) {
     reset();
     setActiveChatId(id);
     setRefineText("");
+    setSidebarOpen(false);
   }
 
   function handleDeleteChat(id: string) {
@@ -170,30 +173,61 @@ export default function Home() {
   const showEmptyState = !hasLiveRun && !activeChat;
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      <ChatSidebar
-        chats={chats}
-        activeChatId={activeChatId}
-        running={running}
-        onSelect={handleSelectChat}
-        onNew={handleNewChat}
-        onDelete={handleDeleteChat}
-      />
+    <div className="relative flex flex-1 overflow-hidden">
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+        />
+      )}
+
+      <div
+        className={`fixed inset-y-0 left-0 z-40 transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <ChatSidebar
+          chats={chats}
+          activeChatId={activeChatId}
+          running={running}
+          onSelect={handleSelectChat}
+          onNew={handleNewChat}
+          onDelete={handleDeleteChat}
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
 
       <main className="relative flex flex-1 flex-col overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--color-primary)_0%,transparent_70%)] opacity-[0.08]" />
 
+        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 md:hidden">
+          <button
+            type="button"
+            aria-label="Open sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+          >
+            <Menu className="size-4" />
+          </button>
+          <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/70">
+            <Sparkles className="size-3.5" />
+            KOL Creator Research
+          </span>
+        </div>
+
         {showEmptyState ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8">
-            <div className="flex items-center gap-2 text-muted-foreground/50">
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-5 py-10 sm:px-8">
+            <div className="hidden items-center gap-2 text-muted-foreground/50 sm:flex">
               <Sparkles className="size-4" />
               <span className="text-xs font-medium tracking-wide uppercase">KOL Creator Research</span>
             </div>
-            <h1 className="max-w-xl text-center text-[26px] font-semibold text-foreground/90">
+            <h1 className="max-w-xl text-center text-xl font-semibold text-foreground/90 sm:text-[26px]">
               Describe the creators you&apos;re looking for.
             </h1>
             <form
-              className="flex w-full max-w-xl items-center gap-3 rounded-[10px] border border-border/60 bg-card px-4.5 py-4"
+              className="flex w-full max-w-xl items-center gap-3 rounded-[10px] border border-border/60 bg-card px-3.5 py-3 sm:px-4.5 sm:py-4"
               onSubmit={(e) => {
                 e.preventDefault();
                 submit(prompt);
@@ -203,7 +237,7 @@ export default function Home() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Find finance/trading TikTok creators similar to @valatility and @deltatrendtrading, under 100k followers, real growing engagement"
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
               />
               <button
                 type="submit"
@@ -228,13 +262,13 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-6 py-8">
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
             {activeChat?.parentId && (
               <p className="font-mono text-[11.5px] text-muted-foreground/60">
                 ↳ refined from a previous search
               </p>
             )}
-            <h2 className="truncate text-[19px] font-semibold text-foreground/92">
+            <h2 className="truncate text-base font-semibold text-foreground/92 sm:text-[19px]">
               {displayedTitle}
             </h2>
 

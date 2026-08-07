@@ -93,6 +93,7 @@ export function ChatSidebar({
   onSelect,
   onNew,
   onDelete,
+  onClose,
 }: {
   chats: ChatSession[];
   activeChatId: string | null;
@@ -100,6 +101,7 @@ export function ChatSidebar({
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onClose?: () => void;
 }) {
   const today = chats.filter((c) => isToday(c.createdAt));
   const earlier = chats.filter((c) => !isToday(c.createdAt));
@@ -107,9 +109,19 @@ export function ChatSidebar({
   const empty = chats.length === 0 && !running;
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col gap-4 border-r border-border/60 bg-sidebar p-3">
+    <aside className="flex h-full w-72 shrink-0 flex-col gap-4 border-r border-border/60 bg-sidebar p-3 sm:w-64">
       <div className="flex items-center justify-between px-1 pt-1">
         <span className="text-[13px] font-semibold text-foreground/90">Runs</span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close sidebar"
+            className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground md:hidden"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
 
       <Button variant="outline" className="w-full justify-center gap-2" onClick={onNew}>

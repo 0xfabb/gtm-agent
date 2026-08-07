@@ -139,7 +139,7 @@ export function FollowerRangeChip({
   return (
     <div
       ref={containerRef}
-      className="relative z-10 inline-flex min-w-[230px] flex-col gap-3 rounded-lg border border-primary/40 bg-popover px-3.5 py-3 font-sans"
+      className="relative z-10 inline-flex w-[min(230px,calc(100vw-2.5rem))] flex-col gap-3 rounded-lg border border-primary/40 bg-popover px-3.5 py-3 font-sans"
     >
       <span className="font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         Followers
@@ -174,7 +174,7 @@ export function FollowerRangeChip({
           style={{ left: `${maxPct}%` }}
         />
       </div>
-      <p className="max-w-[220px] text-[11px] leading-relaxed text-muted-foreground">
+      <p className="max-w-full text-[11px] leading-relaxed text-muted-foreground">
         Releasing re-filters the cached candidates instantly — no new research.
       </p>
     </div>

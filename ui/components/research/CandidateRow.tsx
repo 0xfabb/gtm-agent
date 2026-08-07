@@ -74,78 +74,91 @@ export function CandidateRow({
         rejected && "opacity-40"
       )}
     >
-      <div className="flex items-center gap-2.5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card text-xs font-semibold text-foreground/70">
-          {initials(candidate.handle)}
-        </span>
-        <a
-          href={candidate.url}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 text-[15px] font-semibold text-foreground/95 hover:text-primary hover:underline"
-        >
-          {candidate.handle}
-        </a>
-        <span className="shrink-0 rounded border border-border/60 bg-card px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-foreground/60 uppercase">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card text-xs font-semibold text-foreground/70">
+            {initials(candidate.handle)}
+          </span>
+          <a
+            href={candidate.url}
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 truncate text-[15px] font-semibold text-foreground/95 hover:text-primary hover:underline"
+          >
+            {candidate.handle}
+          </a>
+          <span className="hidden shrink-0 rounded border border-border/60 bg-card px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-foreground/60 uppercase sm:inline-block">
+            {PLATFORM_LABEL[candidate.platform] ?? candidate.platform}
+          </span>
+          {verified ? (
+            <span
+              title="Verified"
+              className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary"
+            >
+              ✓
+            </span>
+          ) : (
+            <span className="hidden shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground sm:inline-block">
+              unverified
+            </span>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex w-11 shrink-0 flex-col items-end gap-1 sm:w-14">
+            <span
+              className={cn(
+                "tabular font-mono text-[15px] font-semibold",
+                verified ? "text-foreground/90" : "text-muted-foreground"
+              )}
+            >
+              {candidate.score}
+            </span>
+            <div className="hidden h-1 w-13.5 overflow-hidden rounded-full bg-white/8 sm:block">
+              <div
+                className={cn("h-full", verified ? "bg-primary" : "bg-white/25")}
+                style={{ width: `${candidate.score * 10}%` }}
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => toggleDown(candidate.platform, candidate.handle)}
+            aria-label="Not a good match"
+            className={cn(
+              "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
+              rejected
+                ? "border-destructive/45 bg-destructive/15 text-destructive"
+                : "border-border/60 text-muted-foreground hover:text-destructive"
+            )}
+          >
+            <ThumbsDown className="size-3" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            aria-label={expanded ? "Collapse" : "Expand"}
+            className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60 hover:text-foreground"
+          >
+            {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 pl-10.5 sm:hidden">
+        <span className="rounded border border-border/60 bg-card px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-wide text-foreground/60 uppercase">
           {PLATFORM_LABEL[candidate.platform] ?? candidate.platform}
         </span>
-        {verified ? (
-          <span
-            title="Verified"
-            className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary"
-          >
-            ✓
-          </span>
-        ) : (
-          <span className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground">
+        {!verified && (
+          <span className="rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             unverified
           </span>
         )}
-
-        <span className="flex-1" />
-
-        <div className="flex w-14 shrink-0 flex-col items-end gap-1">
-          <span
-            className={cn(
-              "tabular font-mono text-[15px] font-semibold",
-              verified ? "text-foreground/90" : "text-muted-foreground"
-            )}
-          >
-            {candidate.score}
-          </span>
-          <div className="h-1 w-13.5 overflow-hidden rounded-full bg-white/8">
-            <div
-              className={cn("h-full", verified ? "bg-primary" : "bg-white/25")}
-              style={{ width: `${candidate.score * 10}%` }}
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => toggleDown(candidate.platform, candidate.handle)}
-          aria-label="Not a good match"
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
-            rejected
-              ? "border-destructive/45 bg-destructive/15 text-destructive"
-              : "border-border/60 text-muted-foreground hover:text-destructive"
-          )}
-        >
-          <ThumbsDown className="size-3" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          aria-label={expanded ? "Collapse" : "Expand"}
-          className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60 hover:text-foreground"
-        >
-          {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-        </button>
       </div>
 
-      <div className="flex items-baseline gap-2.5 pl-10.5">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 pl-10.5">
         <span className="tabular shrink-0 font-mono text-[12.5px] text-muted-foreground">
           {statsLine(candidate)}
         </span>
@@ -157,7 +170,7 @@ export function CandidateRow({
       </div>
 
       {expanded && (
-        <div className="ml-10.5 flex flex-col gap-1.5 border-t border-border/40 pt-2.5">
+        <div className="flex flex-col gap-1.5 border-t border-border/40 pl-10.5 pt-2.5">
           <p className="text-[13px] leading-relaxed text-foreground/75">{candidate.rationale}</p>
           <p className="font-mono text-[11px] text-muted-foreground/60">
             Sources: {sourcesFor(candidate).join(" · ")}
