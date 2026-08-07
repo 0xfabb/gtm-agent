@@ -5,38 +5,44 @@ from config import (
     AGENT_MODEL,
     MAX_SEARCH_ITERATIONS,
     PLATFORM_DOMAINS,
+    PLATFORM_QUERY_FRAME,
     RESULTS_PER_SEARCH,
     exa_client,
     openai_client,
 )
 from schemas import Candidate
+from urls import is_profile_url, parse_profile_url
 
 EmitFn = Callable[[dict], Awaitable[None]]
 
-TOOLS = [
-    {
+SEARCH_TOOL = {
         "type": "function",
         "name": "search_creators",
         "description": (
-            "Search the web, filtered to this platform's domain, for candidate "
-            "creators matching a query. Returns raw results with page text "
-            "excerpts you can read for follower counts, bio text, and "
-            "engagement/growth signals."
+            "Search this platform for creator profiles. Provide only a plain "
+            "description of the kind of creator you want; the platform name and "
+            "page framing are added automatically. Returns page text you can "
+            "read for follower counts, bio text and engagement signals."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {
+                "description": {
                     "type": "string",
-                    "description": "Search query describing the niche/audience to look for.",
+                    "description": (
+                        "Description of the creator to find, e.g. 'finance creator "
+                        "explaining options trading to beginners'. No search "
+                        "operators, no platform name, no follower numbers."
+                    ),
                 }
             },
-            "required": ["query"],
+            "required": ["description"],
             "additionalProperties": False,
         },
         "strict": True,
-    },
-    {
+}
+
+SUBMIT_TOOL = {
         "type": "function",
         "name": "submit_candidates",
         "description": (
@@ -79,23 +85,39 @@ TOOLS = [
             "additionalProperties": False,
         },
         "strict": True,
-    },
-]
+}
+
+TOOLS = [SEARCH_TOOL, SUBMIT_TOOL]
 
 
 def _build_system_prompt(platform: str) -> str:
     return f"""You are a creator-sourcing researcher focused only on {platform}. \
-Use search_creators to find real candidates matching the brief below \
-(you may call it up to {MAX_SEARCH_ITERATIONS} times to refine your query). \
-When you have enough evidence, call submit_candidates. Ground every \
-candidate in text you actually saw in search results — never fabricate \
-follower counts or bios. If you can't verify a stat, leave it null."""
+Call search_creators with a plain description of the kind of creator to find \
+(up to {MAX_SEARCH_ITERATIONS} times, varying the angle each time). Never use \
+search operators such as site: — the platform is already constrained for you.
+
+When you have enough evidence, call submit_candidates. Ground every candidate \
+in text you actually saw in the results, and prefer candidates whose own \
+profile page you saw. Never fabricate follower counts or bios; if a stat is \
+not visible in the text, leave it null rather than estimating."""
 
 
-async def _do_search(platform: str, query: str, emit: EmitFn) -> list[dict]:
+def build_search_query(platform: str, description: str) -> str:
+    frame = PLATFORM_QUERY_FRAME[platform]
+    return f"{frame} {description.strip()}"
+
+
+def _usable_results(results) -> list:
+    usable = [r for r in results if parse_profile_url(r.url) is not None]
+    usable.sort(key=lambda r: not is_profile_url(r.url))
+    return usable
+
+
+async def _do_search(platform: str, description: str, emit: EmitFn) -> list[dict]:
+    query = build_search_query(platform, description)
     await emit({"type": "agent_step", "agent": platform, "action": "searching", "query": query})
 
-    results = await exa_client.search(
+    response = await exa_client.search(
         query,
         include_domains=PLATFORM_DOMAINS[platform],
         num_results=RESULTS_PER_SEARCH,
@@ -103,13 +125,14 @@ async def _do_search(platform: str, query: str, emit: EmitFn) -> list[dict]:
     )
 
     raw_results = []
-    for result in results.results:
+    for result in _usable_results(response.results):
+        ref = parse_profile_url(result.url)
         item = {
             "url": result.url,
+            "handle": ref.handle,
+            "is_profile_page": is_profile_url(result.url),
             "title": result.title,
             "text": result.text,
-            "published_date": result.published_date,
-            "author": result.author,
         }
         raw_results.append(item)
         await emit(
@@ -117,7 +140,7 @@ async def _do_search(platform: str, query: str, emit: EmitFn) -> list[dict]:
                 "type": "agent_step",
                 "agent": platform,
                 "action": "found",
-                "result": {"url": item["url"], "title": item["title"]},
+                "result": {"url": result.url, "title": result.title},
             }
         )
     return raw_results
@@ -151,11 +174,23 @@ async def run_platform_agent(
     ]
 
     try:
-        for _ in range(MAX_SEARCH_ITERATIONS + 1):
+        for iteration in range(MAX_SEARCH_ITERATIONS + 1):
+            is_final = iteration == MAX_SEARCH_ITERATIONS
+            if is_final:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Search budget exhausted. Call submit_candidates now "
+                            "with the best candidates you have gathered so far."
+                        ),
+                    }
+                )
+
             response = await openai_client.responses.create(
                 model=AGENT_MODEL,
                 input=messages,
-                tools=TOOLS,
+                tools=[SUBMIT_TOOL] if is_final else TOOLS,
             )
             messages += response.output
 
@@ -167,7 +202,7 @@ async def run_platform_agent(
                 args = json.loads(call.arguments)
 
                 if call.name == "search_creators":
-                    raw_results = await _do_search(platform, args["query"], emit)
+                    raw_results = await _do_search(platform, args["description"], emit)
                     messages.append(
                         {
                             "type": "function_call_output",

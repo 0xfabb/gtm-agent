@@ -9,9 +9,9 @@ OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 EXA_API_KEY = os.environ["EXA_API_KEY"]
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5000")
 
-STRUCTURING_MODEL = "gpt-5.6-luna"
-AGENT_MODEL = "gpt-5.6-luna"
-RANKING_MODEL = "gpt-5.6-terra"
+STRUCTURING_MODEL = os.environ.get("STRUCTURING_MODEL", "gpt-5.6-luna")
+AGENT_MODEL = os.environ.get("AGENT_MODEL", "gpt-5.6-terra")
+RANKING_MODEL = os.environ.get("RANKING_MODEL", "gpt-5.6-terra")
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 exa_client = AsyncExa(api_key=EXA_API_KEY)
@@ -20,6 +20,12 @@ PLATFORM_DOMAINS = {
     "tiktok": ["tiktok.com"],
     "youtube": ["youtube.com"],
     "instagram": ["instagram.com"],
+}
+
+PLATFORM_QUERY_FRAME = {
+    "tiktok": "TikTok profile page of a",
+    "youtube": "YouTube channel homepage of a",
+    "instagram": "Instagram profile page of a",
 }
 
 MAX_SEARCH_ITERATIONS = 4
