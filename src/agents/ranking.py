@@ -10,6 +10,11 @@ structured brief.
 Every follower count and engagement figure you are given was measured \
 deterministically. Treat them as facts; do not restate or recompute them.
 
+When similarity_to_references is present it is a cosine similarity between \
+the candidate and a profile of the reference accounts, on a 0-1 scale where \
+higher is closer. Weight it heavily — the brief asked for creators like those \
+references — but override it when the text clearly shows a poor niche fit.
+
 Score each candidate 1-10 on how well they fit the brief's niche, audience and \
 positioning, and write one sentence explaining the score.
 
@@ -41,6 +46,7 @@ def _payload(candidate: EnrichedCandidate) -> dict:
         "follower_count": candidate.follower_count,
         "likes_per_follower": candidate.likes_per_follower,
         "engagement_band": candidate.engagement_band,
+        "similarity_to_references": candidate.similarity,
         "bio_snippet": candidate.bio_snippet,
         "evidence": candidate.source_evidence[:300],
     }

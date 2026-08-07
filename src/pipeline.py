@@ -5,6 +5,7 @@ from agents.reference_resolver import resolve_references
 from agents.research_agent import run_platform_agent
 from agents.structuring import structure_query
 from enrichment import enrich_all, partition_candidates
+from rerank import rerank_by_similarity
 from schemas import Candidate
 from verification import verify_candidates
 
@@ -84,6 +85,12 @@ async def run_pipeline(prompt: str):
         yield {"type": "error", "agent": "verification", "message": str(exc)}
 
     in_band, unverified = partition_candidates(enriched, structured_query)
+
+    if seed_profile is not None:
+        try:
+            in_band = await rerank_by_similarity(in_band, seed_profile)
+        except Exception as exc:
+            yield {"type": "error", "agent": "rerank", "message": str(exc)}
 
     yield {
         "type": "filtered",

@@ -42,6 +42,7 @@ export interface Candidate {
   engagement_band: EngagementBand;
   stat_source: StatSource;
   stat_confidence: string;
+  similarity: number | null;
   bio_snippet: string | null;
   growth_signal: string | null;
   source_evidence: string;

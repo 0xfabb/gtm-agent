@@ -58,6 +58,7 @@ class EnrichedCandidate(BaseModel):
     engagement_band: str = "unknown"
     stat_source: str = "none"
     stat_confidence: str = "none"
+    similarity: Optional[float] = None
     bio_snippet: Optional[str] = None
     growth_signal: Optional[str] = None
     source_evidence: str = ""

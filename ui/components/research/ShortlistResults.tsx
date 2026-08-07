@@ -10,6 +10,7 @@ import {
   Heart,
   ScanSearch,
   ShieldQuestion,
+  Sparkle,
   Users,
 } from "lucide-react";
 
@@ -84,6 +85,18 @@ function Stats({ candidate }: { candidate: Candidate }) {
           <TooltipContent>
             Lifetime likes divided by followers — not a per-post engagement rate.
             Band: {candidate.engagement_band}.
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {candidate.similarity != null && (
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex items-center gap-1" />}>
+            <Sparkle className="size-3" />
+            {Math.round(candidate.similarity * 100)}% similar
+          </TooltipTrigger>
+          <TooltipContent>
+            Cosine similarity between this creator and a profile of the reference
+            accounts, measured on their bio and page text.
           </TooltipContent>
         </Tooltip>
       )}

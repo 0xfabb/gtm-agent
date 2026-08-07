@@ -16,6 +16,7 @@ FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", "http://localhost:5000")
 STRUCTURING_MODEL = env("STRUCTURING_MODEL", "gpt-5.6-luna")
 AGENT_MODEL = env("AGENT_MODEL", "gpt-5.6-terra")
 RANKING_MODEL = env("RANKING_MODEL", "gpt-5.6-terra")
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", "text-embedding-3-small")
 
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 exa_client = AsyncExa(api_key=EXA_API_KEY)
