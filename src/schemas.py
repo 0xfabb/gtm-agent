@@ -48,6 +48,21 @@ class Candidate(BaseModel):
     source_evidence: str
 
 
-class RankedCandidate(Candidate):
+class EnrichedCandidate(BaseModel):
+    handle: str
+    platform: Platform
+    url: str
+    follower_count: Optional[int] = None
+    likes_count: Optional[int] = None
+    likes_per_follower: Optional[float] = None
+    engagement_band: str = "unknown"
+    stat_source: str = "none"
+    stat_confidence: str = "none"
+    bio_snippet: Optional[str] = None
+    growth_signal: Optional[str] = None
+    source_evidence: str = ""
+
+
+class RankedCandidate(EnrichedCandidate):
     score: int
     rationale: str

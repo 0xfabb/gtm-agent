@@ -1,32 +1,51 @@
 from pydantic import BaseModel
 
-from config import RANKING_MODEL, openai_client
-from schemas import Candidate, RankedCandidate, StructuredQuery
+from config import MIN_SHORTLIST_SCORE, RANKING_MODEL, openai_client
+from schemas import EnrichedCandidate, Platform, RankedCandidate, StructuredQuery
+from urls import dedupe_key
 
 SYSTEM_PROMPT = """You are ranking creator candidates against a recruiter's \
-structured brief. Score each candidate 1-10 on fit (audience, niche, \
-follower ceiling, growth signal) and write a one-sentence rationale. Only \
-rank the candidates given to you — never invent new ones. Sort the output \
-best-fit first."""
+structured brief.
+
+Every follower count and engagement figure you are given was measured \
+deterministically. Treat them as facts; do not restate or recompute them.
+
+Score each candidate 1-10 on how well they fit the brief's niche, audience and \
+positioning, and write one sentence explaining the score. Be strict: a 7 means \
+you would genuinely put this creator in front of the client. Reserve 8-10 for \
+clear matches.
+
+Return every candidate you were given, identified by handle and platform. \
+Never invent a candidate that was not in the list."""
+
+
+class _Score(BaseModel):
+    handle: str
+    platform: Platform
+    score: int
+    rationale: str
 
 
 class _RankingResult(BaseModel):
-    ranked: list[RankedCandidate]
+    ranked: list[_Score]
 
 
-def _dedupe(candidates: list[Candidate]) -> list[Candidate]:
-    seen: dict[str, Candidate] = {}
-    for c in candidates:
-        key = c.handle.lower().strip("@") + "|" + c.platform
-        seen.setdefault(key, c)
-    return list(seen.values())
+def _payload(candidate: EnrichedCandidate) -> dict:
+    return {
+        "handle": candidate.handle,
+        "platform": candidate.platform,
+        "follower_count": candidate.follower_count,
+        "likes_per_follower": candidate.likes_per_follower,
+        "engagement_band": candidate.engagement_band,
+        "bio_snippet": candidate.bio_snippet,
+        "evidence": candidate.source_evidence[:300],
+    }
 
 
 async def rank_candidates(
-    structured_query: StructuredQuery, candidates: list[Candidate]
+    structured_query: StructuredQuery, candidates: list[EnrichedCandidate]
 ) -> list[RankedCandidate]:
-    deduped = _dedupe(candidates)
-    if not deduped:
+    if not candidates:
         return []
 
     response = await openai_client.responses.parse(
@@ -37,11 +56,29 @@ async def rank_candidates(
                 "role": "user",
                 "content": (
                     f"Brief filters: {structured_query.model_dump_json()}\n\n"
-                    f"Candidates: {[c.model_dump() for c in deduped]}"
+                    f"Candidates: {[_payload(c) for c in candidates]}"
                 ),
             },
         ],
         text_format=_RankingResult,
     )
-    ranked = response.output_parsed.ranked
-    return sorted(ranked, key=lambda r: r.score, reverse=True)
+
+    by_key = {dedupe_key(c.platform, c.handle): c for c in candidates}
+
+    ranked: list[RankedCandidate] = []
+    for scored in response.output_parsed.ranked:
+        candidate = by_key.get(dedupe_key(scored.platform, scored.handle))
+        if candidate is None:
+            continue
+        ranked.append(
+            RankedCandidate(
+                **candidate.model_dump(),
+                score=scored.score,
+                rationale=scored.rationale,
+            )
+        )
+
+    ranked.sort(key=lambda r: r.score, reverse=True)
+    qualified = [r for r in ranked if r.score >= MIN_SHORTLIST_SCORE]
+    limit = structured_query.max_results or len(qualified)
+    return qualified[:limit]

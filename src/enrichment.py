@@ -100,7 +100,15 @@ def partition_candidates(
 
 
 def enrich_and_filter(
-    candidates: list[Candidate], query: StructuredQuery
+    candidates: list[Candidate],
+    query: StructuredQuery,
+    page_texts: Optional[dict[str, str]] = None,
 ) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
-    enriched = [enrich_candidate(candidate) for candidate in candidates]
+    texts = page_texts or {}
+    enriched = []
+    for candidate in candidates:
+        ref = parse_profile_url(candidate.url)
+        handle = ref.handle if ref else candidate.handle
+        key = dedupe_key(candidate.platform, handle)
+        enriched.append(enrich_candidate(candidate, texts.get(key)))
     return partition_candidates(dedupe_candidates(enriched), query)

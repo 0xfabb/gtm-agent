@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional
 
 from config import (
@@ -11,9 +12,15 @@ from config import (
     openai_client,
 )
 from schemas import Candidate
-from urls import is_profile_url, parse_profile_url
+from urls import dedupe_key, is_profile_url, parse_profile_url
 
 EmitFn = Callable[[dict], Awaitable[None]]
+
+
+@dataclass
+class PlatformFindings:
+    candidates: list[Candidate]
+    page_texts: dict[str, str]
 
 SEARCH_TOOL = {
         "type": "function",
@@ -113,7 +120,9 @@ def _usable_results(results) -> list:
     return usable
 
 
-async def _do_search(platform: str, description: str, emit: EmitFn) -> list[dict]:
+async def _do_search(
+    platform: str, description: str, emit: EmitFn, page_texts: dict[str, str]
+) -> list[dict]:
     query = build_search_query(platform, description)
     await emit({"type": "agent_step", "agent": platform, "action": "searching", "query": query})
 
@@ -127,10 +136,15 @@ async def _do_search(platform: str, description: str, emit: EmitFn) -> list[dict
     raw_results = []
     for result in _usable_results(response.results):
         ref = parse_profile_url(result.url)
+        is_profile = is_profile_url(result.url)
+        key = dedupe_key(platform, ref.handle)
+        if result.text and (is_profile or key not in page_texts):
+            page_texts[key] = result.text
+
         item = {
             "url": result.url,
             "handle": ref.handle,
-            "is_profile_page": is_profile_url(result.url),
+            "is_profile_page": is_profile,
             "title": result.title,
             "text": result.text,
         }
@@ -164,7 +178,7 @@ async def run_platform_agent(
     structured_query_json: str,
     seed_profile_json: Optional[str],
     emit: EmitFn,
-) -> list[Candidate]:
+) -> PlatformFindings:
     messages: list[dict] = [
         {"role": "system", "content": _build_system_prompt(platform)},
         {
@@ -172,6 +186,7 @@ async def run_platform_agent(
             "content": _build_task_message(structured_query_json, seed_profile_json),
         },
     ]
+    page_texts: dict[str, str] = {}
 
     try:
         for iteration in range(MAX_SEARCH_ITERATIONS + 1):
@@ -202,7 +217,9 @@ async def run_platform_agent(
                 args = json.loads(call.arguments)
 
                 if call.name == "search_creators":
-                    raw_results = await _do_search(platform, args["description"], emit)
+                    raw_results = await _do_search(
+                        platform, args["description"], emit, page_texts
+                    )
                     messages.append(
                         {
                             "type": "function_call_output",
@@ -211,11 +228,15 @@ async def run_platform_agent(
                         }
                     )
                 elif call.name == "submit_candidates":
-                    return [
-                        Candidate(platform=platform, **c) for c in args["candidates"]
-                    ]
+                    return PlatformFindings(
+                        candidates=[
+                            Candidate(platform=platform, **c)
+                            for c in args["candidates"]
+                        ],
+                        page_texts=page_texts,
+                    )
 
-        return []
+        return PlatformFindings(candidates=[], page_texts=page_texts)
     except Exception as exc:
         await emit({"type": "error", "agent": platform, "message": str(exc)})
-        return []
+        return PlatformFindings(candidates=[], page_texts=page_texts)
