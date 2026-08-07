@@ -29,11 +29,19 @@ export interface SeedProfile {
   search_descriptions: string[];
 }
 
+export type StatSource = "verified" | "parsed" | "model" | "none";
+export type EngagementBand = "low" | "healthy" | "very_high" | "unknown";
+
 export interface Candidate {
   handle: string;
   platform: Platform;
   url: string;
   follower_count: number | null;
+  likes_count: number | null;
+  likes_per_follower: number | null;
+  engagement_band: EngagementBand;
+  stat_source: StatSource;
+  stat_confidence: string;
   bio_snippet: string | null;
   growth_signal: string | null;
   source_evidence: string;
@@ -42,6 +50,13 @@ export interface Candidate {
 export interface RankedCandidate extends Candidate {
   score: number;
   rationale: string;
+}
+
+export interface FilterSummary {
+  seen: number;
+  in_band: number;
+  unverified: number;
+  verified: number;
 }
 
 export interface AgentStep {
@@ -63,5 +78,11 @@ export type ResearchEvent =
       result: { url: string; title: string | null };
     }
   | { type: "error"; agent: string; message: string }
+  | { type: "filtered"; data: FilterSummary }
   | { type: "ranking_complete"; data: RankedCandidate[] }
-  | { type: "done"; shortlist: RankedCandidate[] };
+  | {
+      type: "done";
+      shortlist: RankedCandidate[];
+      unverified: Candidate[];
+      considered: number;
+    };

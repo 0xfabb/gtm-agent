@@ -11,9 +11,13 @@ Every follower count and engagement figure you are given was measured \
 deterministically. Treat them as facts; do not restate or recompute them.
 
 Score each candidate 1-10 on how well they fit the brief's niche, audience and \
-positioning, and write one sentence explaining the score. Be strict: a 7 means \
-you would genuinely put this creator in front of the client. Reserve 8-10 for \
-clear matches.
+positioning, and write one sentence explaining the score.
+
+Score on niche and positioning fit. Do not penalise a candidate for a missing \
+or unverified stat, and do not re-apply the follower band — that is already \
+enforced. A 6 means a useful, on-niche creator worth a look; 8-10 means a \
+clear match. Reserve 1-5 for creators who are genuinely off-niche or wrong for \
+the audience.
 
 Return every candidate you were given, identified by handle and platform. \
 Never invent a candidate that was not in the list."""

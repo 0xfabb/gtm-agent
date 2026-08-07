@@ -110,10 +110,18 @@ Call search_creators with a plain description of the kind of creator to find \
 (up to {MAX_SEARCH_ITERATIONS} times, varying the angle each time). Never use \
 search operators such as site: — the platform is already constrained for you.
 
-When you have enough evidence, call submit_candidates. Ground every candidate \
-in text you actually saw in the results, and prefer candidates whose own \
-profile page you saw. Never fabricate follower counts or bios; if a stat is \
-not visible in the text, leave it null rather than estimating."""
+Your job is COVERAGE, not selection. Follower counts, engagement, the follower \
+band and the final ranking are all enforced downstream from verified data, so \
+do not pre-filter on them and do not drop a creator for being too big, too \
+small or unverifiable.
+
+Submit every creator you saw who plausibly matches the niche — aim for at \
+least 12 across your searches if the results support it. The only reason to \
+leave someone out is that they are clearly off-niche or not a creator account.
+
+Ground every candidate in text you actually saw. Never fabricate follower \
+counts or bios; if a stat is not visible in the text, leave it null rather \
+than estimating. Copy URLs exactly as they appear."""
 
 
 def build_search_query(platform: str, description: str) -> str:
