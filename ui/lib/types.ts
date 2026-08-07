@@ -1,13 +1,23 @@
 export type Platform = "tiktok" | "youtube" | "instagram";
 
+export interface ReferenceAccount {
+  platform: Platform;
+  handle: string;
+  url: string;
+}
+
 export interface StructuredQuery {
   platforms: Platform[];
   niche_keywords: string[];
+  reference_accounts: ReferenceAccount[];
   audience_age_min: number | null;
   audience_age_max: number | null;
   audience_gender_skew: string | null;
+  audience_geo: string | null;
+  follower_min: number | null;
   follower_max: number | null;
-  growth_rate_min_pct: number | null;
+  exclude_keywords: string[];
+  max_results: number | null;
   other_notes: string | null;
 }
 
