@@ -2,7 +2,8 @@ import asyncio
 import re
 from typing import Awaitable, Callable, Optional
 
-from config import BIO_LINK_HOSTS, REFERENCE_RESULTS_PER_LOOKUP, STRUCTURING_MODEL, exa_client, openai_client
+import exa_cache
+from config import BIO_LINK_HOSTS, REFERENCE_RESULTS_PER_LOOKUP, STRUCTURING_MODEL, openai_client
 from schemas import ReferenceAccount, SeedProfile
 
 EmitFn = Callable[[dict], Awaitable[None]]
@@ -50,7 +51,7 @@ async def _lookup_reference(reference: ReferenceAccount, emit: EmitFn) -> str:
         }
     )
 
-    response = await exa_client.search(
+    response = await exa_cache.search(
         query,
         num_results=REFERENCE_RESULTS_PER_LOOKUP,
         contents={"text": {"maxCharacters": 1200}},
@@ -81,7 +82,7 @@ async def _lookup_reference(reference: ReferenceAccount, emit: EmitFn) -> str:
                     "query": f"bio link: {link}",
                 }
             )
-            contents = await exa_client.get_contents(
+            contents = await exa_cache.get_contents(
                 [link], text={"maxCharacters": 1200}
             )
             for result in contents.results:

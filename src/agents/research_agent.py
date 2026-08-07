@@ -8,9 +8,9 @@ from config import (
     PLATFORM_DOMAINS,
     PLATFORM_QUERY_FRAME,
     RESULTS_PER_SEARCH,
-    exa_client,
     openai_client,
 )
+import exa_cache
 from schemas import Candidate
 from urls import dedupe_key, is_profile_url, parse_profile_url
 
@@ -144,7 +144,7 @@ async def _do_search(
     query = build_search_query(platform, description)
     await emit({"type": "agent_step", "agent": platform, "action": "searching", "query": query})
 
-    response = await exa_client.search(
+    response = await exa_cache.search(
         query,
         include_domains=PLATFORM_DOMAINS[platform],
         num_results=RESULTS_PER_SEARCH,
