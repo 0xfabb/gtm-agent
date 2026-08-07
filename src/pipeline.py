@@ -4,8 +4,9 @@ from agents.ranking import rank_candidates
 from agents.reference_resolver import resolve_references
 from agents.research_agent import run_platform_agent
 from agents.structuring import structure_query
-from enrichment import enrich_and_filter
+from enrichment import enrich_all, partition_candidates
 from schemas import Candidate
+from verification import verify_candidates
 
 _QUEUE_DONE = object()
 
@@ -75,9 +76,14 @@ async def run_pipeline(prompt: str):
     for finding in findings:
         page_texts.update(finding.page_texts)
 
-    in_band, unverified = enrich_and_filter(
-        all_candidates, structured_query, page_texts
-    )
+    enriched = enrich_all(all_candidates, page_texts)
+
+    try:
+        enriched = await verify_candidates(enriched)
+    except Exception as exc:
+        yield {"type": "error", "agent": "verification", "message": str(exc)}
+
+    in_band, unverified = partition_candidates(enriched, structured_query)
 
     yield {
         "type": "filtered",
@@ -85,6 +91,7 @@ async def run_pipeline(prompt: str):
             "seen": len(all_candidates),
             "in_band": len(in_band),
             "unverified": len(unverified),
+            "verified": sum(1 for c in in_band if c.stat_source == "verified"),
         },
     }
 

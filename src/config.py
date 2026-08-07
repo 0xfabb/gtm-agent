@@ -37,6 +37,10 @@ MIN_SHORTLIST_SCORE = 7
 
 REFERENCE_RESULTS_PER_LOOKUP = 5
 
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
+YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/channels"
+YOUTUBE_BATCH_SIZE = 50
+
 BIO_LINK_HOSTS = (
     "linktr.ee",
     "beacons.ai",

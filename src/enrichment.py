@@ -99,11 +99,9 @@ def partition_candidates(
     return in_band, unverified
 
 
-def enrich_and_filter(
-    candidates: list[Candidate],
-    query: StructuredQuery,
-    page_texts: Optional[dict[str, str]] = None,
-) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
+def enrich_all(
+    candidates: list[Candidate], page_texts: Optional[dict[str, str]] = None
+) -> list[EnrichedCandidate]:
     texts = page_texts or {}
     enriched = []
     for candidate in candidates:
@@ -111,4 +109,12 @@ def enrich_and_filter(
         handle = ref.handle if ref else candidate.handle
         key = dedupe_key(candidate.platform, handle)
         enriched.append(enrich_candidate(candidate, texts.get(key)))
-    return partition_candidates(dedupe_candidates(enriched), query)
+    return dedupe_candidates(enriched)
+
+
+def enrich_and_filter(
+    candidates: list[Candidate],
+    query: StructuredQuery,
+    page_texts: Optional[dict[str, str]] = None,
+) -> tuple[list[EnrichedCandidate], list[EnrichedCandidate]]:
+    return partition_candidates(enrich_all(candidates, page_texts), query)
