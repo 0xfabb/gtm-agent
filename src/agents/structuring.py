@@ -82,21 +82,21 @@ async def structure_query(
 ) -> StructuredQuery:
     references = extract_reference_accounts(prompt)
 
-    response = await openai_client.responses.parse(
+    response = await openai_client.chat.completions.parse(
         model=STRUCTURING_MODEL,
-        input=[
+        messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": f"{_describe_references(references)}\n\nBrief: {prompt}",
             },
         ],
-        text_format=_QueryDraft,
+        response_format=_QueryDraft,
     )
     if tracker:
         tracker.record_response(STRUCTURING_MODEL, response)
 
-    draft = response.output_parsed
+    draft = response.choices[0].message.parsed
     query = StructuredQuery(
         **draft.model_dump(), reference_accounts=references
     )

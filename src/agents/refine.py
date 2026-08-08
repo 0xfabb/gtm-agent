@@ -31,9 +31,9 @@ Always include a one-sentence explanation of your classification."""
 async def classify_refinement(
     original: StructuredQuery, text: str, tracker: CostTracker | None = None
 ) -> RefineDecision:
-    response = await openai_client.responses.parse(
+    response = await openai_client.chat.completions.parse(
         model=STRUCTURING_MODEL,
-        input=[
+        messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
@@ -43,8 +43,8 @@ async def classify_refinement(
                 ),
             },
         ],
-        text_format=RefineDecision,
+        response_format=RefineDecision,
     )
     if tracker:
         tracker.record_response(STRUCTURING_MODEL, response)
-    return response.output_parsed
+    return response.choices[0].message.parsed

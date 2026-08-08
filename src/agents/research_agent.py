@@ -31,7 +31,8 @@ class PlatformFindings:
     observations: dict[str, PageObservation]
 
 SEARCH_TOOL = {
-        "type": "function",
+    "type": "function",
+    "function": {
         "name": "search_creators",
         "description": (
             "Search this platform for creator profiles. Provide only a plain "
@@ -55,10 +56,12 @@ SEARCH_TOOL = {
             "additionalProperties": False,
         },
         "strict": True,
+    },
 }
 
 SUBMIT_TOOL = {
-        "type": "function",
+    "type": "function",
+    "function": {
         "name": "submit_candidates",
         "description": (
             "Finish this platform's research and submit the candidates found. "
@@ -100,6 +103,7 @@ SUBMIT_TOOL = {
             "additionalProperties": False,
         },
         "strict": True,
+    },
 }
 
 TOOLS = [SEARCH_TOOL, SUBMIT_TOOL]
@@ -225,34 +229,49 @@ async def run_platform_agent(
                     }
                 )
 
-            response = await openai_client.responses.create(
+            response = await openai_client.chat.completions.create(
                 model=AGENT_MODEL,
-                input=messages,
+                messages=messages,
                 tools=[SUBMIT_TOOL] if is_final else TOOLS,
             )
             if tracker:
                 tracker.record_response(AGENT_MODEL, response)
-            messages += response.output
 
-            function_calls = [item for item in response.output if item.type == "function_call"]
-            if not function_calls:
+            message = response.choices[0].message
+            tool_calls = message.tool_calls or []
+            assistant_msg = {"role": "assistant", "content": message.content}
+            if tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
+                    }
+                    for call in tool_calls
+                ]
+            messages.append(assistant_msg)
+
+            if not tool_calls:
                 break
 
-            for call in function_calls:
-                args = json.loads(call.arguments)
+            for call in tool_calls:
+                args = json.loads(call.function.arguments)
 
-                if call.name == "search_creators":
+                if call.function.name == "search_creators":
                     raw_results = await _do_search(
                         platform, args["description"], emit, observations
                     )
                     messages.append(
                         {
-                            "type": "function_call_output",
-                            "call_id": call.call_id,
-                            "output": json.dumps(raw_results),
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": json.dumps(raw_results),
                         }
                     )
-                elif call.name == "submit_candidates":
+                elif call.function.name == "submit_candidates":
                     return PlatformFindings(
                         candidates=[
                             Candidate(platform=platform, **c)

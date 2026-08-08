@@ -9,16 +9,24 @@ def env(name: str, default: str = "") -> str:
     return os.environ.get(name, "").strip() or default
 
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
+OPENROUTER_BASE_URL = env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 EXA_API_KEY = os.environ["EXA_API_KEY"]
 FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", "http://localhost:5000")
 
-STRUCTURING_MODEL = env("STRUCTURING_MODEL", "gpt-5.6-luna")
-AGENT_MODEL = env("AGENT_MODEL", "gpt-5.6-terra")
-RANKING_MODEL = env("RANKING_MODEL", "gpt-5.6-terra")
-EMBEDDING_MODEL = env("EMBEDDING_MODEL", "text-embedding-3-small")
+STRUCTURING_MODEL = env("STRUCTURING_MODEL", "openai/gpt-5.6-luna")
+AGENT_MODEL = env("AGENT_MODEL", "openai/gpt-5.6-terra")
+RANKING_MODEL = env("RANKING_MODEL", "openai/gpt-5.6-terra")
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", "openai/text-embedding-3-small")
 
-openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+openai_client = AsyncOpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url=OPENROUTER_BASE_URL,
+    default_headers={
+        "HTTP-Referer": "https://github.com/kol-research-tool",
+        "X-Title": "KOL Creator Research Tool",
+    },
+)
 exa_client = AsyncExa(api_key=EXA_API_KEY)
 
 PLATFORM_DOMAINS = {

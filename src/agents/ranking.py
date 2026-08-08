@@ -65,9 +65,9 @@ async def rank_candidates(
     if not candidates:
         return []
 
-    response = await openai_client.responses.parse(
+    response = await openai_client.chat.completions.parse(
         model=RANKING_MODEL,
-        input=[
+        messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
@@ -77,7 +77,7 @@ async def rank_candidates(
                 ),
             },
         ],
-        text_format=_RankingResult,
+        response_format=_RankingResult,
     )
     if tracker:
         tracker.record_response(RANKING_MODEL, response)
@@ -85,7 +85,7 @@ async def rank_candidates(
     by_key = {dedupe_key(c.platform, c.handle): c for c in candidates}
 
     ranked: list[RankedCandidate] = []
-    for scored in response.output_parsed.ranked:
+    for scored in response.choices[0].message.parsed.ranked:
         candidate = by_key.get(dedupe_key(scored.platform, scored.handle))
         if candidate is None:
             continue

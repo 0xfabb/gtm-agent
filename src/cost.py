@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 
 MODEL_PRICING_PER_MTOK = {
-    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
-    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
-    "gpt-5.6-sol": {"input": 5.00, "output": 30.00},
-    "text-embedding-3-small": {"input": 0.02, "output": 0.0},
+    "openai/gpt-5.6-luna": {"input": 0.20, "output": 1.20},
+    "openai/gpt-5.6-terra": {"input": 2.00, "output": 12.00},
+    "openai/gpt-5.6-sol": {"input": 5.00, "output": 30.00},
+    "openai/text-embedding-3-small": {"input": 0.02, "output": 0.0},
 }
 
 
@@ -43,7 +43,9 @@ class CostTracker:
         input_tokens = getattr(usage, "input_tokens", None) or getattr(
             usage, "prompt_tokens", 0
         )
-        output_tokens = getattr(usage, "output_tokens", 0) or 0
+        output_tokens = getattr(usage, "output_tokens", None) or getattr(
+            usage, "completion_tokens", 0
+        )
         self.record(model, input_tokens, output_tokens)
 
     def summary(self) -> dict:

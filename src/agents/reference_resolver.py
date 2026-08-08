@@ -124,16 +124,16 @@ async def resolve_references(
     listed = ", ".join(f"@{r.handle} ({r.platform})" for r in references)
 
     try:
-        response = await openai_client.responses.parse(
+        response = await openai_client.chat.completions.parse(
             model=STRUCTURING_MODEL,
-            input=[
+            messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
                     "content": f"Reference accounts: {listed}\n\nWeb evidence:\n{evidence}",
                 },
             ],
-            text_format=SeedProfile,
+            response_format=SeedProfile,
         )
     except Exception as exc:
         await emit({"type": "error", "agent": "references", "message": str(exc)})
@@ -142,4 +142,4 @@ async def resolve_references(
     if tracker:
         tracker.record_response(STRUCTURING_MODEL, response)
 
-    return response.output_parsed
+    return response.choices[0].message.parsed

@@ -28,13 +28,13 @@ def test_query_framing_trims_description():
 
 
 def test_search_tool_takes_a_description_not_a_raw_query():
-    assert "description" in SEARCH_TOOL["parameters"]["properties"]
-    assert "query" not in SEARCH_TOOL["parameters"]["properties"]
+    assert "description" in SEARCH_TOOL["function"]["parameters"]["properties"]
+    assert "query" not in SEARCH_TOOL["function"]["parameters"]["properties"]
 
 
 def test_final_iteration_tool_set_cannot_search():
-    assert SUBMIT_TOOL["name"] == "submit_candidates"
-    assert [t["name"] for t in TOOLS] == ["search_creators", "submit_candidates"]
+    assert SUBMIT_TOOL["function"]["name"] == "submit_candidates"
+    assert [t["function"]["name"] for t in TOOLS] == ["search_creators", "submit_candidates"]
 
 
 def test_usable_results_drops_pages_without_a_handle_and_prefers_profiles():
